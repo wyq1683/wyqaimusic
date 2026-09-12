@@ -20,7 +20,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 VARIANT="${1:-release}"
 
-export JAVA_HOME="${JAVA_HOME:-/usr/lib/jvm/java-21-openjdk-amd64}"
+export JAVA_HOME="/usr/lib/jvm/java-21-openjdk-amd64"
 export ANDROID_HOME="${ANDROID_HOME:-/opt/android-sdk}"
 export ANDROID_SDK_ROOT="$ANDROID_HOME"
 export PATH="$JAVA_HOME/bin:$PATH"
@@ -46,7 +46,7 @@ files = set([
     "android/app/build.gradle",
     "android/capacitor-cordova-android-plugins/build.gradle",
     "node_modules/@capacitor/android/capacitor/build.gradle",
-]) | set(glob.glob("node_modules/@capacitor/*/android/build.gradle"))
+]) | set(glob.glob("node_modules/@capacitor/*/android/build.gradle")) | set(glob.glob("node_modules/@capgo/*/android/build.gradle"))
 n = 0
 for f in sorted(files):
     try:
@@ -64,10 +64,10 @@ PY
 echo "== 构建 $VARIANT =="
 cd android
 if [ "$VARIANT" = "debug" ]; then
-  ./gradlew assembleDebug --no-daemon -Dorg.gradle.jvmargs="-Xmx3g"
+  ./gradlew clean assembleDebug --no-daemon -Dorg.gradle.jvmargs="-Xmx3g"
   APK="app/build/outputs/apk/debug/app-debug.apk"
 else
-  ./gradlew assembleRelease --no-daemon -Dorg.gradle.jvmargs="-Xmx3g"
+  ./gradlew clean assembleRelease --no-daemon -Dorg.gradle.jvmargs="-Xmx3g"
   APK="app/build/outputs/apk/release/app-release.apk"
 fi
 

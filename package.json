@@ -4,6 +4,7 @@
     "@capacitor/cli": "^8.5.1",
     "@capacitor/core": "^8.5.1",
     "@capacitor/haptics": "^8.0.2",
+    "@capgo/capacitor-media-session": "^8.0.30",
     "puppeteer-core": "^25.7.0"
   }
 }

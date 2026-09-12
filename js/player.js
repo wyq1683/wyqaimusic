@@ -43,34 +43,74 @@
       return "data:image/svg+xml," + encodeURIComponent(svg);
     } catch (e) { return null; }
   }
-  function updateMediaSession(song) {
-    if (!("mediaSession" in navigator) || !song) return;
+  // 原生媒体会话桥接（Capacitor APK 环境：Android 锁屏/通知栏/小米灵动胶囊等）
+  function nativeMS() {
     try {
-      const ms = navigator.mediaSession;
-      const meta = { title: song.title || "未知曲目", artist: song.artist || "未知歌手", album: song.album || "" };
-      const cover = makeCoverUrl(song);
-      if (cover) {
-        meta.artwork = [
-          { src: cover, sizes: "512x512", type: cover.indexOf("data:image") === 0 ? "image/svg+xml" : "image/jpeg" },
-          { src: cover, sizes: "256x256", type: cover.indexOf("data:image") === 0 ? "image/svg+xml" : "image/jpeg" },
-        ];
-      }
-      ms.metadata = new MediaMetadata(meta);
-    } catch (e) { /* 忽略 metadata 设置失败 */ }
+      return (typeof window !== "undefined" && window.Capacitor &&
+        window.Capacitor.Plugins && window.Capacitor.Plugins.MediaSession) || null;
+    } catch (e) { return null; }
+  }
+
+  function updateMediaSession(song) {
+    if (!song) return;
+    // Web Media Session（浏览器）
+    if ("mediaSession" in navigator) {
+      try {
+        const ms = navigator.mediaSession;
+        const meta = { title: song.title || "未知曲目", artist: song.artist || "未知歌手", album: song.album || "" };
+        const cover = makeCoverUrl(song);
+        if (cover) {
+          meta.artwork = [
+            { src: cover, sizes: "512x512", type: cover.indexOf("data:image") === 0 ? "image/svg+xml" : "image/jpeg" },
+            { src: cover, sizes: "256x256", type: cover.indexOf("data:image") === 0 ? "image/svg+xml" : "image/jpeg" },
+          ];
+        }
+        ms.metadata = new MediaMetadata(meta);
+      } catch (e) { /* 忽略 metadata 设置失败 */ }
+    }
+    // 原生 Media Session（Capacitor APK）
+    const nms = nativeMS();
+    if (nms && nms.setMetadata) {
+      try {
+        const cover = makeCoverUrl(song);
+        nms.setMetadata({
+          title: song.title || "未知曲目",
+          artist: song.artist || "未知歌手",
+          album: song.album || "",
+          artwork: cover ? [{ src: cover, sizes: "512x512", type: cover.indexOf("data:image") === 0 ? "image/svg+xml" : "image/jpeg" }] : []
+        });
+      } catch (e) { /* 忽略 */ }
+    }
   }
   function setupMediaSession() {
-    if (!("mediaSession" in navigator)) return;
-    const ms = navigator.mediaSession;
-    try {
-      ms.setActionHandler("play", () => play());
-      ms.setActionHandler("pause", () => pause());
-      ms.setActionHandler("stop", () => pause());
-      ms.setActionHandler("previoustrack", () => prev());
-      ms.setActionHandler("nexttrack", () => next());
-      ms.setActionHandler("seekto", (d) => { if (d && !isNaN(d.seekTime)) seek(d.seekTime); });
-      ms.setActionHandler("seekbackward", (d) => { seek(Math.max(0, audio.currentTime - (d && d.seekOffset ? d.seekOffset : 10))); });
-      ms.setActionHandler("seekforward", (d) => { seek(Math.min(audio.duration || 0, audio.currentTime + (d && d.seekOffset ? d.seekOffset : 10))); });
-    } catch (e) { /* 某些平台不支持部分 handler，忽略 */ }
+    // Web Media Session（浏览器）
+    if ("mediaSession" in navigator) {
+      const ms = navigator.mediaSession;
+      try {
+        ms.setActionHandler("play", () => play());
+        ms.setActionHandler("pause", () => pause());
+        ms.setActionHandler("stop", () => pause());
+        ms.setActionHandler("previoustrack", () => prev());
+        ms.setActionHandler("nexttrack", () => next());
+        ms.setActionHandler("seekto", (d) => { if (d && !isNaN(d.seekTime)) seek(d.seekTime); });
+        ms.setActionHandler("seekbackward", (d) => { seek(Math.max(0, audio.currentTime - (d && d.seekOffset ? d.seekOffset : 10))); });
+        ms.setActionHandler("seekforward", (d) => { seek(Math.min(audio.duration || 0, audio.currentTime + (d && d.seekOffset ? d.seekOffset : 10))); });
+      } catch (e) { /* 某些平台不支持部分 handler，忽略 */ }
+    }
+    // 原生 Media Session（Capacitor APK）
+    const nms = nativeMS();
+    if (nms && nms.setActionHandler) {
+      try {
+        nms.setActionHandler({ action: "play" }, () => play());
+        nms.setActionHandler({ action: "pause" }, () => pause());
+        nms.setActionHandler({ action: "stop" }, () => pause());
+        nms.setActionHandler({ action: "previoustrack" }, () => prev());
+        nms.setActionHandler({ action: "nexttrack" }, () => next());
+        nms.setActionHandler({ action: "seekto" }, (d) => { if (d && !isNaN(d.seekTime)) seek(d.seekTime); });
+        nms.setActionHandler({ action: "seekbackward" }, () => { seek(Math.max(0, audio.currentTime - 10)); });
+        nms.setActionHandler({ action: "seekforward" }, () => { seek(Math.min(audio.duration || 0, audio.currentTime + 10)); });
+      } catch (e) { /* 忽略 */ }
+    }
   }
 
 
@@ -313,6 +353,10 @@
       if ("mediaSession" in navigator) {
         try { navigator.mediaSession.playbackState = "playing"; } catch (e) {}
       }
+      const nmsPlay = nativeMS();
+      if (nmsPlay && nmsPlay.setPlaybackState) {
+        try { nmsPlay.setPlaybackState({ playbackState: "playing" }); } catch (e) {}
+      }
       setupBeatTap();
       startBeatLoop();
     });
@@ -320,6 +364,10 @@
       emit("state", { playing: false });
       if ("mediaSession" in navigator) {
         try { navigator.mediaSession.playbackState = "paused"; } catch (e) {}
+      }
+      const nmsPause = nativeMS();
+      if (nmsPause && nmsPause.setPlaybackState) {
+        try { nmsPause.setPlaybackState({ playbackState: "paused" }); } catch (e) {}
       }
       stopBeatLoop();
     });
@@ -358,15 +406,28 @@
   }
 
   function syncPositionState() {
-    if (!("mediaSession" in navigator) || !navigator.mediaSession.setPositionState) return;
     if (!isFinite(audio.duration) || audio.duration <= 0) return;
-    try {
-      navigator.mediaSession.setPositionState({
-        duration: audio.duration,
-        playbackRate: audio.playbackRate || 1,
-        position: audio.currentTime,
-      });
-    } catch (e) { /* 忽略 */ }
+    // Web Media Session
+    if ("mediaSession" in navigator && navigator.mediaSession.setPositionState) {
+      try {
+        navigator.mediaSession.setPositionState({
+          duration: audio.duration,
+          playbackRate: audio.playbackRate || 1,
+          position: audio.currentTime,
+        });
+      } catch (e) { /* 忽略 */ }
+    }
+    // 原生 Media Session（Capacitor APK）
+    const nms = nativeMS();
+    if (nms && nms.setPositionState) {
+      try {
+        nms.setPositionState({
+          duration: audio.duration,
+          playbackRate: audio.playbackRate || 1,
+          position: audio.currentTime,
+        });
+      } catch (e) { /* 忽略 */ }
+    }
   }
 
   function getState() {

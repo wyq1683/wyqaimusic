@@ -1,0 +1,57 @@
+# ===== 敏感信息（绝不提交）=====
+# 真实数据库/邮箱配置（部署时用 config.example.php 复制填写）
+api/config.php
+# 含 FTP 凭据的备份脚本
+backup.py
+# 签名密钥
+wave-release.keystore
+*.keystore
+# 构建产物
+*.apk
+
+# ===== 依赖与构建产物 =====
+node_modules/
+android/
+www/
+__pycache__/
+backups/
+api/cache/
+
+# ===== 编辑器 / 工具 =====
+.codebuddy/
+.cloudstudio
+.DS_Store
+
+# ===== 开发调试截图 =====
+audit-final*.jpg
+audit-final*.png
+b2-*.png
+lp-landscape*.png
+np-check.png
+player-bar-zoom*.jpg
+probe-result*.png
+v3*.png
+v3*.jpg
+v4*.png
+v4*.jpg
+v5*.png
+v5*.jpg
+v6*.png
+v6b.jpg
+v7*.png
+v7*.jpg
+wave-player-bar.jpg
+verify-np.png
+
+# ===== 临时测试脚本 =====
+check.js
+check2.js
+check-layout.js
+e2e.js
+smoke.js
+verify.js
+verify2.js
+test-batch1.js
+test-batch2.js
+test-np.html
+test-real.html

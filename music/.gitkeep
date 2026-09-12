@@ -1,0 +1,4 @@
+# 音频文件目录
+# 将 MP3 文件命名为 s01.mp3 ~ s36.mp3 放在此目录
+# 然后在 js/data.js 中将 AUDIO_MODE 改为 "local" 或 "php"
+

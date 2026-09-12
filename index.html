@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wave · 音乐播放器</title>
+  <link rel="stylesheet" href="css/style.css?v=20260912" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎵</text></svg>" />
+</head>
+<body>
+  <!-- 跳到主内容（无障碍） -->
+  <a href="#view" class="skip-link">跳到主内容</a>
+
+  <!-- 自定义背景层（透明界面下透出，支持图片/渐变） -->
+  <div class="app-bg" id="appBg" aria-hidden="true"></div>
+
+  <!-- 背景粒子动效层 -->
+  <canvas id="particles" aria-hidden="true"></canvas>
+
+  <!-- 统一图标库（单色 SVG，避免 emoji 自带背景色） -->
+  <svg xmlns="http://www.w3.org/2000/svg" style="display:none;" aria-hidden="true">
+    <defs>
+      <symbol id="ic-shuffle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></symbol>
+      <symbol id="ic-prev" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></symbol>
+      <symbol id="ic-next" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6h2v12h-2z"/></symbol>
+      <symbol id="ic-play" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></symbol>
+      <symbol id="ic-pause" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></symbol>
+      <symbol id="ic-repeat" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2.1l4 4-4 4"/><path d="M3 7.5V6a3 3 0 0 1 3-3h14.1"/><path d="M7 21.9l-4-4 4-4"/><path d="M21 16.5V18a3 3 0 0 1-3 3H3.9"/></symbol>
+      <symbol id="ic-repeat-one" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2.1l4 4-4 4"/><path d="M3 7.5V6a3 3 0 0 1 3-3h14.1"/><path d="M7 21.9l-4-4 4-4"/><path d="M21 16.5V18a3 3 0 0 1-3 3H3.9"/><path d="M11 10h4v1.5a1.5 1.5 0 0 1-1.5 1.5H13v1"/><path d="M13 15h-2v-2h2"/></symbol>
+      <symbol id="ic-vol-high" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 8v8a4.5 4.5 0 0 0 2.5-4zm3.5.3c0 2.8-1.6 5.2-4 6.3V19c2.9-1.3 5-4.2 5-7.7s-2.1-6.4-5-7.7v-.7c2.4 1.1 4 3.5 4 6.3z"/></symbol>
+      <symbol id="ic-vol-mute" viewBox="0 0 24 24" fill="currentColor"><path d="M16.5 12c0-1.8-1-3.3-2.5-4.1v8.2c1.5-.8 2.5-2.3 2.5-4.1zM5 9v6h4l5 5V4L9 9H5zm11.5 3c0 2.8-1.6 5.2-4 6.3V19c2.9-1.3 5-4.2 5-7.7s-2.1-6.4-5-7.7v.7c2.4 1.1 4 3.5 4 6.3z"/></symbol>
+      <symbol id="ic-expand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></symbol>
+      <symbol id="ic-heart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1 7.8 7.8 7.8-7.8 1-1a5.5 5.5 0 0 0 0-7.8z"/></symbol>
+      <symbol id="ic-heart-fill" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></symbol>
+      <symbol id="ic-music" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></symbol>
+      <symbol id="ic-more" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></symbol>
+      <!-- 导航图标 -->
+      <symbol id="ic-nav-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></symbol>
+      <symbol id="ic-nav-library" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></symbol>
+      <symbol id="ic-nav-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></symbol>
+      <symbol id="ic-nav-heart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1 7.8 7.8 7.8-7.8 1-1a5.5 5.5 0 0 0 0-7.8z"/></symbol>
+      <symbol id="ic-nav-playlist" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/></symbol>
+      <symbol id="ic-nav-profile" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
+      <symbol id="ic-nav-friends" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+      <symbol id="ic-nav-history" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></symbol>
+      <symbol id="ic-landscape" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M2 12h20"/></symbol>
+      <symbol id="ic-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></symbol>
+    </defs>
+  </svg>
+
+  <!-- 侧边导航 -->
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <span class="brand-logo" aria-hidden="true">🎵</span>
+      <span class="brand-name">Wave</span>
+    </div>
+    <nav class="nav" id="nav" aria-label="主导航">
+      <a class="nav-item" data-route="/home" href="#/home"><svg class="ic" width="18" height="18" aria-hidden="true"><use href="#ic-nav-home"></use></svg>首页</a>
+      <a class="nav-item" data-route="/library" href="#/library"><svg class="ic" width="18" height="18" aria-hidden="true"><use href="#ic-nav-library"></use></svg>曲库</a>
+      <a class="nav-item" data-route="/search" href="#/search"><svg class="ic" width="18" height="18" aria-hidden="true"><use href="#ic-nav-search"></use></svg>搜索</a>
+      <a class="nav-item" data-route="/favorites" href="#/favorites"><svg class="ic" width="18" height="18" aria-hidden="true"><use href="#ic-nav-heart"></use></svg>收藏夹</a>
+      <a class="nav-item" data-route="/playlists" href="#/playlists"><svg class="ic" width="18" height="18" aria-hidden="true"><use href="#ic-nav-playlist"></use></svg>播放列表</a>
+      <a class="nav-item" data-route="/history" href="#/history"><svg class="ic" width="18" height="18" aria-hidden="true"><use href="#ic-nav-history"></use></svg>历史</a>
+      <a class="nav-item" data-route="/friends" href="#/friends" id="navFriends"><svg class="ic" width="18" height="18" aria-hidden="true"><use href="#ic-nav-friends"></use></svg>好友<span class="nav-dot" id="friendsDot" hidden></span></a>
+      <a class="nav-item" data-route="/online-users" href="#/online-users"><svg class="ic" width="18" height="18" aria-hidden="true"><use href="#ic-nav-history"></use></svg>在线</a>
+      <a class="nav-item" data-route="/profile" href="#/profile"><svg class="ic" width="18" height="18" aria-hidden="true"><use href="#ic-nav-profile"></use></svg>我的</a>
+    </nav>
+    <a class="nav-item download-app" href="wave-music-v1.0.apk" download title="下载 Wave 安卓版">
+      <svg class="ic" width="18" height="18" aria-hidden="true"><use href="#ic-download"></use></svg>下载 App
+    </a>
+    <div class="sidebar-foot" id="sidebarFoot"></div>
+    <div class="powered-by" title="由 wyq1683 提供技术支持">
+      <svg class="pb-mark" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2l2.4 4.9 5.4.8-3.9 3.8.9 5.4L12 14.9 7.2 17l.9-5.4L4.2 7.7l5.4-.8z"/></svg>
+      <span class="pb-text">技术支持</span>
+      <span class="pb-name">wyq1683</span>
+    </div>
+    <div class="legal-links">
+      <a href="privacy.html" target="_blank" rel="noopener">隐私政策</a>
+      <span class="legal-sep">·</span>
+      <a href="terms.html" target="_blank" rel="noopener">用户条款</a>
+    </div>
+  </aside>
+
+  <!-- 主内容 -->
+  <main class="main" id="main" aria-label="主内容区">
+    <header class="topbar">
+      <button class="icon-btn menu-btn" id="menuBtn" title="菜单" aria-label="打开菜单" aria-expanded="false"><svg width="20" height="20" aria-hidden="true"><use href="#ic-more"></use></svg></button>
+      <div class="topbar-title" id="topbarTitle">首页</div>
+      <div class="topbar-user" id="topbarUser"></div>
+    </header>
+    <section class="view" id="view" tabindex="-1"></section>
+  </main>
+
+  <!-- 底部播放条 -->
+  <footer class="player-bar" id="playerBar" aria-label="播放控制">
+    <div class="pb-left" id="pbLeft">
+      <div class="pb-cover" id="pbCover" data-action="goto-nowplaying" role="button" tabindex="0" aria-label="打开正在播放页"></div>
+      <div class="pb-meta">
+        <div class="pb-title" id="pbTitle">未在播放</div>
+        <div class="pb-artist" id="pbArtist">选择一首歌开始</div>
+      </div>
+      <button class="icon-btn pb-fav" id="pbFav" title="收藏" aria-label="收藏当前歌曲" aria-pressed="false"><svg width="18" height="18" aria-hidden="true"><use href="#ic-heart"></use></svg></button>
+    </div>
+    <div class="pb-center">
+      <div class="pb-controls">
+        <button class="icon-btn" id="btnShuffle" title="随机" aria-label="随机播放" aria-pressed="false"><svg width="18" height="18" aria-hidden="true"><use href="#ic-shuffle"></use></svg></button>
+        <button class="icon-btn" id="btnPrev" data-haptic="light" title="上一首" aria-label="上一首"><svg width="20" height="20" aria-hidden="true"><use href="#ic-prev"></use></svg></button>
+        <button class="icon-btn play-btn" id="btnPlay" data-haptic="medium" title="播放/暂停" aria-label="播放或暂停" aria-pressed="false"><svg width="22" height="22" aria-hidden="true"><use href="#ic-play"></use></svg></button>
+        <button class="icon-btn" id="btnNext" data-haptic="light" title="下一首" aria-label="下一首"><svg width="20" height="20" aria-hidden="true"><use href="#ic-next"></use></svg></button>
+        <button class="icon-btn" id="btnRepeat" title="循环" aria-label="循环模式" aria-pressed="false"><svg width="18" height="18" aria-hidden="true"><use href="#ic-repeat"></use></svg></button>
+      </div>
+      <div class="pb-progress">
+        <span class="time" id="timeCur" aria-hidden="true">0:00</span>
+        <input type="range" id="seek" class="seek" min="0" max="1" value="0" step="1" aria-label="播放进度" />
+        <span class="time" id="timeDur" aria-hidden="true">0:00</span>
+      </div>
+    </div>
+    <div class="pb-right">
+      <button class="icon-btn" id="btnNow" title="更多" aria-label="更多选项" aria-haspopup="true" aria-expanded="false"><svg width="18" height="18" aria-hidden="true"><use href="#ic-more"></use></svg></button>
+    </div>
+  </footer>
+
+  <!-- 播放条「更多」菜单 -->
+  <div class="pb-menu" id="pbMenu" hidden role="menu">
+    <button class="pb-menu-item" data-menu="info" role="menuitem"><svg width="16" height="16" aria-hidden="true"><use href="#ic-music"></use></svg>歌曲信息</button>
+    <button class="pb-menu-item" data-menu="playlist" role="menuitem"><svg width="16" height="16" aria-hidden="true"><use href="#ic-nav-playlist"></use></svg>添加到歌单</button>
+    <button class="pb-menu-item" data-menu="share" role="menuitem"><svg width="16" height="16" aria-hidden="true"><use href="#ic-nav-friends"></use></svg>分享给好友</button>
+    <button class="pb-menu-item" data-menu="download" role="menuitem"><svg width="16" height="16" aria-hidden="true"><use href="#ic-expand"></use></svg>下载歌曲</button>
+    <button class="pb-menu-item" data-menu="bg" role="menuitem"><svg width="16" height="16" aria-hidden="true"><use href="#ic-more"></use></svg>更换背景</button>
+    <button class="pb-menu-item" data-menu="fullscreen" role="menuitem"><svg width="16" height="16" aria-hidden="true"><use href="#ic-expand"></use></svg>全屏沉浸</button>
+      <button class="pb-menu-item" data-menu="haptic" role="menuitem"><svg width="16" height="16" aria-hidden="true"><use href="#ic-more"></use></svg><span>触感反馈</span><span class="pb-menu-hint" id="hapticHint">开启</span></button>
+    <button class="pb-menu-item" data-menu="landscape" role="menuitem"><svg width="16" height="16" aria-hidden="true"><use href="#ic-landscape"></use></svg>横屏模式</button>
+    <button type="button" class="pb-menu-item pb-boost-toggle" id="boostToggle" role="menuitem" aria-expanded="false">
+      <svg width="16" height="16" aria-hidden="true"><use href="#ic-vol-high"></use></svg>
+      <span>音量增强</span>
+      <span class="pb-menu-hint" id="boostHint">100%</span>
+    </button>
+    <div class="pb-boost-options" id="boostOptions" hidden>
+      <button class="pb-menu-item boost-opt" data-boost="1" role="menuitem"><span class="boost-dot"></span>正常 100%</button>
+      <button class="pb-menu-item boost-opt" data-boost="1.25" role="menuitem"><span class="boost-dot"></span>增强 125%</button>
+      <button class="pb-menu-item boost-opt" data-boost="1.5" role="menuitem"><span class="boost-dot"></span>增强 150%</button>
+      <button class="pb-menu-item boost-opt" data-boost="2" role="menuitem"><span class="boost-dot"></span>增强 200%</button>
+    </div>
+  </div>
+
+  <!-- 背景设置弹窗 -->
+  <div class="modal-mask" id="bgMask" hidden role="dialog" aria-modal="true" aria-labelledby="bgTitle">
+    <div class="modal bg-modal">
+      <div class="modal-title" id="bgTitle">背景设置</div>
+      <div class="bg-section">
+        <div class="bg-section-label">预设背景</div>
+        <div class="bg-presets" id="bgPresets"></div>
+      </div>
+      <div class="bg-section">
+        <div class="bg-section-label">自定义背景</div>
+        <label class="btn-ghost bg-upload-btn">
+          上传图片
+          <input type="file" id="bgFileInput" accept="image/*" hidden />
+        </label>
+      </div>
+      <div class="bg-section bg-glass-row">
+        <label for="bgBlurRange">背景模糊</label>
+        <input type="range" id="bgBlurRange" class="bg-glass-range" min="0" max="30" step="1" value="6" aria-label="背景模糊" />
+        <span class="bg-glass-value" id="bgBlurValue">6px</span>
+      </div>
+      <div class="bg-section bg-glass-row">
+        <label for="bgGlassRange">界面透明度</label>
+        <input type="range" id="bgGlassRange" class="bg-glass-range" min="0" max="100" step="1" value="30" aria-label="界面透明度" />
+        <span class="bg-glass-value" id="bgGlassValue">30%</span>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-ghost" id="bgReset">恢复默认</button>
+        <button class="btn-primary" id="bgClose">完成</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 登录 / 注册 弹窗 -->
+  <div class="modal-mask" id="authMask" hidden role="dialog" aria-modal="true" aria-labelledby="authTitle">
+    <div class="modal auth-modal">
+      <div class="auth-head">
+        <h2 id="authTitle" class="sr-only">登录或注册</h2>
+        <div class="brand"><span class="brand-logo" aria-hidden="true">🎵</span><span class="brand-name">Wave</span></div>
+        <p class="auth-sub">登录以同步收藏、播放列表与个性化推荐</p>
+      </div>
+      <div class="auth-tabs" role="tablist">
+        <button class="auth-tab active" data-tab="login" role="tab" aria-selected="true">登录</button>
+        <button class="auth-tab" data-tab="register" role="tab" aria-selected="false">注册</button>
+      </div>
+      <form id="authForm" class="auth-form">
+        <div class="form-field">
+          <label for="authUser">用户名</label>
+          <input type="text" id="authUser" autocomplete="username" placeholder="至少 3 个字符" />
+        </div>
+        <div class="form-field" id="emailField" hidden>
+          <label for="authEmail">邮箱</label>
+          <input type="email" id="authEmail" autocomplete="email" placeholder="用于接收登录验证码" />
+        </div>
+        <div class="form-field">
+          <label for="authPass">密码</label>
+          <input type="password" id="authPass" autocomplete="current-password" placeholder="至少 4 个字符" />
+        </div>
+        <div class="form-field" id="codeField" hidden>
+          <label for="authCode">邮箱验证码</label>
+          <input type="text" id="authCode" inputmode="numeric" maxlength="6" placeholder="6 位数字验证码" />
+          <span class="auth-code-hint" id="codeHint"></span>
+        </div>
+        <div class="auth-error" id="authError" aria-live="polite"></div>
+        <button type="submit" class="btn-primary" id="authSubmit">登录</button>
+      </form>
+      <div class="auth-demo">
+        <span>演示账号：</span>
+        <button class="link-btn" id="demoLogin">demo / demo1234</button>
+      </div>
+      <div class="auth-legal">
+        登录/注册即表示同意<a href="terms.html" target="_blank" rel="noopener">《用户条款》</a>与<a href="privacy.html" target="_blank" rel="noopener">《隐私政策》</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- 添加到播放列表 弹窗 -->
+  <div class="modal-mask" id="plMask" hidden role="dialog" aria-modal="true" aria-labelledby="plModalTitle">
+    <div class="modal pl-modal">
+      <div class="modal-title" id="plModalTitle">添加到播放列表</div>
+      <div class="pl-list" id="plList"></div>
+      <div class="pl-new">
+        <label for="plNewName" class="sr-only">新建歌单名称</label>
+        <input type="text" id="plNewName" placeholder="新建歌单名称" />
+        <button class="btn-primary" id="plNewBtn">新建</button>
+      </div>
+      <div class="pl-share-row">
+        <button class="btn-ghost" id="plShareBtn" style="width:100%;display:flex;align-items:center;justify-content:center;gap:6px"><svg width="15" height="15" aria-hidden="true"><use href="#ic-nav-friends"></use></svg>分享给好友</button>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-ghost" id="plClose">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 分享歌曲给好友 弹窗 -->
+  <div class="modal-mask" id="shareMask" hidden role="dialog" aria-modal="true" aria-labelledby="shareTitle">
+    <div class="modal share-modal">
+      <div class="modal-title" id="shareTitle">分享给好友</div>
+      <div class="share-song-card" id="shareSongCard"></div>
+      <div class="share-list" id="shareFriendList"></div>
+      <div class="share-msg-row">
+        <input type="text" id="shareMsg" maxlength="200" placeholder="写一句分享留言（可选）" />
+      </div>
+      <div class="modal-actions">
+        <button class="btn-ghost" id="shareClose">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 通用确认 / 输入弹窗 -->
+  <div class="modal-mask" id="confirmMask" hidden role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+    <div class="modal confirm-modal" style="width:380px">
+      <div class="modal-title" id="confirmTitle">确认操作</div>
+      <div class="confirm-message" id="confirmMessage"></div>
+      <div class="confirm-input-wrap" id="confirmInputWrap" hidden>
+        <label for="confirmInput" class="sr-only" id="confirmInputLabel">输入</label>
+        <input type="text" id="confirmInput" />
+      </div>
+      <div class="modal-actions">
+        <button class="btn-ghost" id="confirmCancel">取消</button>
+        <button class="btn-primary" id="confirmOk">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 编辑个人资料 弹窗 -->
+  <div class="modal-mask" id="profileMask" hidden role="dialog" aria-modal="true" aria-labelledby="profileModalTitle">
+    <div class="modal profile-modal">
+      <div class="modal-title" id="profileModalTitle">编辑个人资料</div>
+      <div class="profile-edit">
+        <div class="form-field">
+          <label>头像</label>
+          <div class="avatar-picker" id="avatarPicker"></div>
+          <div class="avatar-upload-row">
+            <input type="text" id="pfAvatar" placeholder="粘贴图片 URL 或点右侧上传" />
+            <label class="btn-ghost avatar-upload-btn" for="pfAvatarFile">上传图片</label>
+            <input type="file" id="pfAvatarFile" accept="image/jpeg,image/png,image/gif,image/webp" hidden />
+          </div>
+        </div>
+        <div class="form-field">
+          <label for="pfNickname">昵称</label>
+          <input type="text" id="pfNickname" maxlength="32" placeholder="你的昵称" />
+        </div>
+        <div class="form-field">
+          <label>性别</label>
+          <div class="gender-picker" id="genderPicker">
+            <button type="button" data-gender="male">男</button>
+            <button type="button" data-gender="female">女</button>
+            <button type="button" data-gender="secret">保密</button>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-field">
+            <label for="pfAge">年龄</label>
+            <input type="number" id="pfAge" min="1" max="150" placeholder="年龄" />
+          </div>
+          <div class="form-field">
+            <label for="pfRegion">地区</label>
+            <input type="text" id="pfRegion" maxlength="64" placeholder="如：广东 广州" />
+          </div>
+        </div>
+        <div class="form-field">
+          <label for="pfHobby">爱好</label>
+          <input type="text" id="pfHobby" maxlength="255" placeholder="如：音乐、摄影、旅行（逗号分隔）" />
+        </div>
+        <div class="form-field">
+          <label for="pfSignature">个性签名</label>
+          <textarea id="pfSignature" maxlength="200" rows="2" placeholder="写一句你的个性签名"></textarea>
+        </div>
+        <div class="form-field">
+          <label>资料可见性</label>
+          <div class="gender-picker" id="privacyPicker">
+            <button type="button" data-privacy="0">公开</button>
+            <button type="button" data-privacy="1">仅好友</button>
+            <button type="button" data-privacy="2">私密</button>
+          </div>
+        </div>
+        <div class="form-field">
+          <label>我的兴趣（最多 8 个，用于推荐）</label>
+          <div class="interest-chips" id="interestChips"></div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-ghost" id="pfCancel">取消</button>
+        <button class="btn-primary" id="pfSave">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast-wrap" id="toastWrap" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- 全屏沉浸模式退出按钮 -->
+  <button class="immersive-exit" id="immersiveExit" hidden aria-label="退出沉浸模式">✕ 退出沉浸</button>
+
+  <!-- 移动端遮罩 -->
+  <div class="scrim" id="scrim" hidden></div>
+
+  <script src="js/data.js?v=20260910"></script>
+  <script src="js/store.js?v=20260910"></script>
+  <script src="js/recommend.js?v=20260910"></script>
+  <script src="js/player.js?v=20260910"></script>
+  <script src="js/particles.js?v=20260910"></script>
+  <script src="js/ui.js?v=20260912"></script>
+  <script src="js/app.js?v=20260910"></script>
+  <div id="miniLyric" class="mini-lyric" hidden></div>
+</body>
+</html>

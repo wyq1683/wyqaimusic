@@ -1,0 +1,58 @@
+# ============================================================
+#  Wave 音乐播放器 — 安全与缓存响应头
+#  部署日期: 2026-08-29
+#  注意: InfinityFree 仅开放 Apache 应用层配置
+#        SSL 协议/加密套件由前端 openresty 控制，此处无法修改
+# ============================================================
+
+# ---------- 安全响应头 ----------
+<IfModule mod_headers.c>
+    # HSTS: 强制客户端只走 HTTPS，间接规避 SSLv3 / RC4 等弱套件降级
+    # 先用 1 天短时效观察证书自动续期，稳定后可改为 31536000
+    Header always set Strict-Transport-Security "max-age=86400"
+
+    # 防点击劫持: 仅允许同源 iframe 嵌套
+    Header always set X-Frame-Options "SAMEORIGIN"
+
+    # 禁止浏览器 MIME 嗅探，防止上传文件被当作脚本执行
+    Header always set X-Content-Type-Options "nosniff"
+
+    # Referer 策略: 同源带完整路径，跨源只带域名
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+
+    # 权限策略: 关闭播放器用不到的传感器与支付接口
+    Header always set Permissions-Policy "geolocation=(), microphone=(), camera=(), payment=(), usb=()"
+
+    # 旧版 IE / Edge 的 XSS 过滤器
+    Header always set X-XSS-Protection "1; mode=block"
+
+    # 隐藏后端技术栈指纹
+    Header always unset X-Powered-By
+</IfModule>
+
+# ---------- 敏感文件禁止外部访问 ----------
+<FilesMatch "\.(sql|ini|log|env|sh|bak|old|swp|conf|config|dist)$">
+    Require all denied
+</FilesMatch>
+
+<Files ~ "^\.">
+    Require all denied
+</Files>
+
+# ---------- 缓存策略 ----------
+<IfModule mod_headers.c>
+    # 静态资源带 ?v= 版本号，可安全长缓存 7 天
+    <FilesMatch "\.(css|js|png|jpg|jpeg|gif|webp|ico|svg|woff2?|ttf)$">
+        Header set Cache-Control "public, max-age=604800"
+    </FilesMatch>
+
+    # 入口 HTML 不缓存，保证发版立即生效
+    <FilesMatch "\.(html|php)$">
+        Header set Cache-Control "no-cache, must-revalidate"
+    </FilesMatch>
+</IfModule>
+
+# ---------- 压缩 ----------
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/css text/javascript application/javascript application/json image/svg+xml
+</IfModule>

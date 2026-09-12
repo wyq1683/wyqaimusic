@@ -1,0 +1,9 @@
+{
+  "appId": "com.wave.music",
+  "appName": "Wave 音乐",
+  "webDir": "www",
+  "server": {
+    "url": "https://wyqaimusic.wuaze.com",
+    "cleartext": false
+  }
+}

@@ -56,3 +56,34 @@
 <IfModule mod_deflate.c>
     AddOutputFilterByType DEFLATE text/html text/css text/javascript application/javascript application/json image/svg+xml
 </IfModule>
+
+# ============================================================
+#  额外安全加固（2026-09-15）
+# ============================================================
+
+# 禁止目录列表（防止暴露文件结构）
+Options -Indexes
+
+# 隐藏 Apache 版本号
+ServerSignature Off
+
+# 仅允许必要请求方法，其余一律拒绝
+<LimitExcept GET POST HEAD OPTIONS>
+    Require all denied
+</LimitExcept>
+
+# 限制请求体大小（16MB，与 sync.php 的 post_max_size 对齐，防超大 payload 滥用）
+LimitRequestBody 16777216
+
+# 禁止直接访问缓存与限流数据文件（含歌曲元数据缓存、限流计数）
+<FilesMatch "^(rl_|nc_|qq_|fail_)">
+    Require all denied
+</FilesMatch>
+
+# 拦截常见扫描器 / 攻击工具的 User-Agent
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{HTTP_USER_AGENT} (sqlmap|nikto|nmap|masscan|wpscan|dirbuster|gobuster|acunetix|nessus|owasp|python-requests|curl|wget|zgrab|fimap|havij) [NC]
+    RewriteRule ^ - [F,L]
+</IfModule>
+

@@ -14,6 +14,7 @@
  */
 
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/secure.php';
 require_once __DIR__ . '/mail.php';
 
 $action = $_GET['action'] ?? '';
@@ -89,6 +90,8 @@ function profileRow($r) {
 
 // ---- 注册（绑定邮箱） ----
 function handleRegister() {
+    enforce_same_origin();
+    rate_limited('reg:' . client_ip(), 5, 3600); // 单 IP 每小时最多 5 次注册，防批量注册
     $body = readBody();
     $username = trim($body['username'] ?? '');
     $password = $body['password'] ?? '';
@@ -121,9 +124,16 @@ function handleRegister() {
 
 // ---- 登录第一步：验证密码 + 发送验证码 ----
 function handleLoginStep1() {
+    enforce_same_origin();
+    rate_limited('loginip:' . client_ip(), 10, 300); // 单 IP 5 分钟内最多 10 次登录尝试
+
     $body = readBody();
     $username = trim($body['username'] ?? '');
     $password = $body['password'] ?? '';
+
+    if (too_many_fails($username)) {
+        respond(['ok' => false, 'error' => '该账号尝试次数过多，请 15 分钟后再试'], 429);
+    }
 
     $pdo = db();
     $stmt = $pdo->prepare('SELECT id, username, password_hash, email FROM users WHERE username = ?');
@@ -131,8 +141,10 @@ function handleLoginStep1() {
     $user = $stmt->fetch();
 
     if (!$user || !password_verify($password, $user['password_hash'])) {
+        register_login_fail($username); // 记录失败，达到阈值后临时封禁该账号
         respond(['ok' => false, 'error' => '用户名或密码错误'], 401);
     }
+    reset_login_fails($username); // 登录成功清除失败计数
 
     // 未绑定邮箱则无法二次验证
     if (empty($user['email'])) {
@@ -163,6 +175,7 @@ function handleLoginStep1() {
 
 // ---- 登录第二步：验证验证码 ----
 function handleLoginStep2() {
+    enforce_same_origin();
     $body = readBody();
     $userId = intval($body['userId'] ?? 0);
     $code = trim($body['code'] ?? '');
@@ -223,6 +236,7 @@ function handleMe() {
 
 // ---- 更新个人资料 ----
 function handleUpdateProfile() {
+    enforce_same_origin();
     $user = authUser();
     if (!$user) respond(['ok' => false, 'error' => '未登录'], 401);
 

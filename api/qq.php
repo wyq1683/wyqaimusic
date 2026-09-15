@@ -15,6 +15,7 @@
  */
 
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/secure.php';
 
 $action = $_GET['action'] ?? '';
 
@@ -85,6 +86,7 @@ switch ($action) {
         $q = trim($_GET['keywords'] ?? $_GET['q'] ?? '');
         if ($q === '') respond(['ok' => false, 'error' => '缺少搜索关键词'], 400);
         $limit = min(50, max(1, intval($_GET['limit'] ?? 30)));
+        rate_limited('qqsearch:' . client_ip(), 40, 60);
 
         $cacheKey = "search:{$q}:{$limit}";
         $cached = qq_cache_get($cacheKey, 600);
@@ -153,6 +155,7 @@ switch ($action) {
         if ($mid === '' || !preg_match('/^[A-Za-z0-9]+$/', $mid)) {
             respond(['ok' => false, 'error' => '缺少有效歌曲 id'], 400);
         }
+        rate_limited('qqurl:' . client_ip(), 60, 60); // 防音频热链刷爆上游
 
         $guid = (string)mt_rand(1000000000, 2147483647);
 
@@ -201,7 +204,6 @@ switch ($action) {
         if (substr($domain, -1) !== '/') $domain .= '/';
         $finalUrl = $domain . ltrim($purl, '/');
 
-        header('Access-Control-Allow-Origin: *');
         header('Location: ' . $finalUrl, true, 302);
         exit;
 
@@ -211,6 +213,7 @@ switch ($action) {
         if ($mid === '' || !preg_match('/^[A-Za-z0-9]+$/', $mid)) {
             respond(['ok' => false, 'error' => '缺少有效歌曲 id'], 400);
         }
+        rate_limited('qqline:' . client_ip(), 30, 60);
 
         $cacheKey = "lyric:{$mid}";
         $cached = qq_cache_get($cacheKey, 3600);
@@ -241,6 +244,7 @@ switch ($action) {
         if ($id === '' || !preg_match('/^\d+$/', $id)) {
             respond(['ok' => false, 'error' => '缺少有效歌单 id'], 400);
         }
+        rate_limited('qqpl:' . client_ip(), 30, 60);
 
         $cacheKey = "playlist:{$id}";
         $cached = qq_cache_get($cacheKey, 3600);

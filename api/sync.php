@@ -10,6 +10,7 @@
  */
 
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/secure.php';
 
 // 防止大歌单/大 externals 同步时被 PHP 默认 max_input_vars=1000 截断
 @ini_set('max_input_vars', '5000');
@@ -52,6 +53,8 @@ $action = $_GET['action'] ?? (readBody()['action'] ?? '');
 $user = authUser();
 if (!$user) respond(['ok' => false, 'error' => '未登录'], 401);
 $uid = $user['id'];
+enforce_same_origin();
+rate_limited('sync:' . $uid, 30, 60); // 已登录用户每分钟最多 30 次同步，防刷
 
 switch ($action) {
     case 'load': handleLoad($uid); break;

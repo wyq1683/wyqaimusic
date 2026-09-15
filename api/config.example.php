@@ -10,6 +10,9 @@
  * ⚠️ 请勿把真实的 config.php 提交到公开仓库，以免泄露数据库密码。
  */
 
+// ---- 共享安全防护助手（限流/同源校验/安全 CORS，随仓库提供）----
+require_once __DIR__ . '/secure.php';
+
 // ---- 数据库配置（改成你自己的 InfinityFree 数据库信息）----
 define('DB_HOST', 'sqlXXX.infinityfree.com');
 define('DB_NAME', 'your_db_name');
@@ -27,10 +30,8 @@ define('SMTP_FROM_NAME', 'Wave 音乐播放器');
 define('SESSION_NAME', 'wave_session');
 define('API_VERSION', '1.0');
 
-// 允许跨域（同源部署可去掉，保留也无害）
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization');
+// 安全 CORS：仅对白名单 Origin 回显，避免 * 通配泄露用户数据
+cors_headers();
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') {
     http_response_code(204);
     exit;

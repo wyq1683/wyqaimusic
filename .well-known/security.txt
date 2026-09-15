@@ -1,0 +1,5 @@
+Contact: mailto:13525474011@163.com
+Expires: 2027-09-15T00:00:00.000Z
+Preferred-Languages: zh, en
+Canonical: https://wyqaimusic.wuaze.com/.well-known/security.txt
+Policy: 欢迎负责任地报告安全漏洞。请通过上述联系方式私下提交，我们将在 7 个工作日内回复并尽快修复，恳请勿公开披露细节直至修复完成。

@@ -1,27 +1,27 @@
-# Wave 音乐播放器 🎵
+# Wave 音乐播放器
 
-一个原生 JavaScript 构建的网页音乐播放器，支持三音源在线播放、收藏、歌单、跨设备同步与个性化推荐。部署于 InfinityFree 免费 PHP 主机。
+基于原生 JavaScript 构建的网页音乐播放器，支持网易云音乐、QQ 音乐、Audius 三音源在线播放，提供收藏、歌单、跨设备同步与个性化推荐能力。项目部署于 InfinityFree 免费 PHP 主机。
 
-- **线上地址**：<https://wyqaimusic.wuaze.com>
-- **技术栈**：原生 JS（无框架）· PHP 7.x · MySQL
-- **部署方式**：FTP 上传（无 SSH / 无 Composer / 无 Node.js 运行时）
-
----
-
-## ✨ 功能特性
-
-- 🎧 **三音源播放**：内置示例曲 + 网易云音乐 + QQ 音乐 + Audius
-- ❤️ **收藏 / 歌单 / 历史**：支持跨设备同步（MySQL + localStorage）
-- 🔍 **在线搜索**：网易云 / QQ 音乐歌单导入与搜索
-- 🎨 **个性化**：封面取色氛围光、明暗主题、自定义背景（模糊 / 透明度可调）
-- 📱 **移动端体验**：Media Session API（灵动岛 / 锁屏 / 耳机线控）、横屏沉浸模式、触感反馈
-- 👥 **社区**：好友、在线用户、歌曲分享
-- 🔐 **账号体系**：注册 / 登录 / 邮箱二次验证 / 个人资料（头像、昵称、UID、签名等）
-- 📦 **Android App**：通过 Capacitor 打包，支持远程加载本网站
+- 线上地址：<https://wyqaimusic.wuaze.com>
+- 技术栈：原生 JavaScript（无框架）、PHP 7.x、MySQL
+- 部署方式：FTP 上传（无 SSH、无 Composer、无 Node.js 运行时）
 
 ---
 
-## 🛠 技术栈
+## 功能特性
+
+- 三音源播放：内置示例曲、网易云音乐、QQ 音乐、Audius
+- 收藏、歌单、播放历史：支持 MySQL 与 localStorage 跨设备同步
+- 在线搜索：网易云、QQ 音乐歌单导入与搜索
+- 个性化：封面取色氛围光、明暗主题、自定义背景（模糊与透明度可调）
+- 移动端：Media Session API（灵动岛、锁屏、耳机线控）、横屏沉浸模式、触感反馈
+- 社区：好友、在线用户、歌曲分享
+- 账号体系：注册、登录、邮箱二次验证、个人资料（头像、昵称、UID、签名等）
+- Android 应用：基于 Capacitor 打包，远程加载本网站
+
+---
+
+## 技术栈
 
 | 层 | 技术 |
 |---|---|
@@ -33,7 +33,7 @@
 
 ---
 
-## 📁 目录结构
+## 目录结构
 
 ```
 ├── index.html              # 单页入口 + 所有弹窗
@@ -72,7 +72,7 @@
 
 ---
 
-## 🚀 快速部署
+## 快速部署
 
 ### 1. 准备主机与数据库
 
@@ -86,7 +86,7 @@ cp config.example.php config.php
 # 编辑 config.php，填入你自己的数据库与 SMTP 邮箱信息
 ```
 
-> ⚠️ **config.php 已被 .gitignore 排除**，请勿将包含真实密码的 config.php 提交到仓库。
+> 注意：`config.php` 已被 `.gitignore` 排除，请勿将包含真实密码的 `config.php` 提交到仓库。
 
 ### 3. 上传到主机
 
@@ -98,7 +98,7 @@ cp config.example.php config.php
 
 ---
 
-## 💻 本地开发
+## 本地开发
 
 前端为纯静态页面，可直接用静态服务器预览：
 
@@ -111,7 +111,7 @@ python3 -m http.server 8899
 
 ---
 
-## 📱 Android 打包
+## Android 打包
 
 本仓库附带 Capacitor 配置与构建脚本，可将本网站打包为 Android APK（远程加载模式，改网页无需重新发包）。
 
@@ -119,27 +119,27 @@ python3 -m http.server 8899
 bash build-android.sh
 ```
 
-详细步骤与踩坑说明见 [ANDROID_BUILD.md](./ANDROID_BUILD.md)。
+详细步骤与说明见 [ANDROID_BUILD.md](./ANDROID_BUILD.md)。
 
 ---
 
-## 🔒 安全说明
+## 安全说明
 
 - 所有第三方音源请求均通过 PHP 后端代理，前端不直接请求网易云 / Audius。
 - 用户输入做 HTML 转义，文件上传校验 MIME + 随机文件名 + 大小限制。
 - 密码加密存储，不保存明文。
-- **请勿提交** `api/config.php`、`backup.py`、`*.keystore` 等含敏感信息的文件（已列入 `.gitignore`）。
+- 请勿提交 `api/config.php`、`backup.py`、`*.keystore` 等含敏感信息的文件（已列入 `.gitignore`）。
 
 ---
 
-## 📄 许可与版权
+## 许可与版权
 
 - 本项目的代码与界面设计归项目作者所有。
 - 站内播放的音乐、歌词、封面等内容的著作权归原作者、唱片公司或相关权利方所有，仅供个人欣赏与学习交流，请勿用于商业用途或侵犯相关权利人权益。
 
 ---
 
-## 📮 联系方式
+## 联系方式
 
 - 运营者：个人开发者
 - 联系邮箱：13525474011@163.com

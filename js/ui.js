@@ -496,7 +496,7 @@
         <div class="home-hero-actions">
           <button class="btn-primary hero-cta" data-action="goto-library">🎵 立即探索</button>
           <button class="btn-ghost hero-cta-ghost" data-action="goto-search">搜索歌曲</button>
-          <a class="btn-ghost hero-cta-ghost" href="wave-music-v1.0.apk" download>📱 下载 App</a>
+          <a class="btn-ghost hero-cta-ghost" href="wave-music-v1.2.apk" download>📱 下载 App</a>
         </div>
       </div>
       <div class="home-hero-orb" aria-hidden="true"></div>

@@ -153,7 +153,7 @@ keytool -genkeypair -v -keystore wave-release.keystore -alias wave \
 | 音频 | 跨域音频走 `captureStream()` 旁路，不用 `createMediaElementSource`（跨域会静音） |
 | 全屏/横屏 | `screen.orientation.lock()` 在 iOS Safari 不支持，已做 toast 降级提示 |
 | 刘海屏/手势区 | 若要适配，需在 `MainActivity` 处理 `WindowInsets` |
-| 权限 | `VIBRATE` 由 Haptics 插件的 manifest 自动合并，无需手动声明 |
+| 权限 | `VIBRATE` 由 Haptics 插件 manifest 自动合并；媒体会话前台服务权限需手动声明，见第八节 |
 
 ---
 
@@ -225,3 +225,75 @@ document.addEventListener("click", function (e) {
 | 用户关闭开关 | 直接 return，零开销 |
 
 > 注意：Android 上 `navigator.vibrate()` 必须在**用户手势**（如 click）中触发，否则被忽略。本实现的调用链全部在 click 事件里，符合要求。
+
+---
+
+## 八、媒体会话（MediaSession）与系统媒体控制
+
+### 为什么必须用原生插件
+
+**Android WebView 不支持 Web Media Session API**（`navigator.mediaSession`）。网页在浏览器里能驱动的锁屏控制、通知栏卡片、耳机线控，打进 APK 后全部静默失效。因此接入 `@capgo/capacitor-media-session`（v8.0.30，兼容 Capacitor 8）做原生桥接。
+
+前端在 `js/player.js` 里做双通道：检测到 `window.Capacitor.Plugins.MediaSession` 走原生，否则降级回 Web API——所以官网浏览器端体验不受影响。
+
+```bash
+npm i @capgo/capacitor-media-session
+```
+
+桥接点共 5 处：`updateMediaSession`（元数据）、`setupMediaSession`（操作回调）、play / pause 事件（播放状态）、`syncPositionState`（进度）。
+
+### 坑 5：setMetadata 传 artwork 会导致一播放就闪退（严重）
+
+插件 `MediaSessionPlugin.setMetadata` 在**主线程**用 `HttpURLConnection` 同步下载封面：
+
+```java
+if (url.startsWith("http")) {
+    HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
+    connection.connect();          // 主线程网络请求
+    ...
+}
+```
+
+这会抛 `NetworkOnMainThreadException`（属于 `RuntimeException`），而插件只 `catch (JSONException | IOException)`，**拦不住** → 原生崩溃。网易云 / QQ / Audius 的封面全是 http URL，所以**所有在线歌曲一播放就闪退**。
+
+**修复：原生 `setMetadata` 不传 `artwork`**，只传文字信息：
+
+```js
+nms.setMetadata({ title: song.title, artist: song.artist, album: song.album });
+// 切勿传 artwork：[{ src: "https://..." }]
+```
+
+代价：Android 通知 / 锁屏不显示封面图，只有歌名歌手 + 播放控制。灵动胶囊、锁屏控制、耳机线控均不受影响。
+
+### 坑 6：targetSdk 34+ 必须声明 FOREGROUND_SERVICE_MEDIA_PLAYBACK
+
+播放时插件会启动 `mediaPlayback` 类型的**前台服务**。从 `targetSdk 34`（Android 14）起，启动该类型前台服务必须在 manifest 声明 `FOREGROUND_SERVICE_MEDIA_PLAYBACK`，否则 `setPlaybackState("playing")` → `startMediaService()` 抛 `SecurityException` → 同样闪退（仅 Android 14+ 设备复现）。
+
+插件自带的 manifest 只有基础 `FOREGROUND_SERVICE`，缺细分权限，需在主 app 的 `android/app/src/main/AndroidManifest.xml` 手动补全：
+
+```xml
+<uses-permission android:name="android.permission.VIBRATE" />
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+```
+
+> **重要**：`android/` 已列入 `.gitignore`，不进仓库。任何人 clone 后自行 `npx cap add android`，都必须补上这段权限，否则 Android 14+ 一播放就闪退。本仓库的 `build-android.sh` 不含这一步，别漏。
+
+### 生效后的机型特性
+
+正确接入后，系统会自动把 MediaSession 渲染成各家 UI，无需额外开关：小米 HyperOS **灵动胶囊**、OPPO 流体云、vivo 原子通知，以及通用锁屏媒体卡片、通知栏播放控制、蓝牙 / 耳机线控。
+
+---
+
+## 九、overlayfs 下 node_modules 构建产物损坏（沙箱特有）
+
+在 overlay 文件系统的沙箱里，Gradle 写在 `node_modules/@*/android/build/` 的产物会因 copy-up 导致 MD5 校验失败，报 `Cannot create ... values.xml` 一类错误。**只删 `android/` 下的 build 目录不够**，必须连插件的一起删：
+
+```bash
+rm -rf node_modules/@capacitor/*/android/build node_modules/@capgo/*/android/build
+rm -rf android/build android/app/build android/capacitor-cordova-android-plugins/build
+```
+
+另外，环境变量 `JAVA_HOME` 可能被 sdkman 指向 Java 20，而 `capacitor-android` 要求 21。`build-android.sh` 已改为**硬编码** `export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64`，不要改回 `${JAVA_HOME:-...}` 形式。
+

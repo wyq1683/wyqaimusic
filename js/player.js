@@ -69,15 +69,16 @@
       } catch (e) { /* 忽略 metadata 设置失败 */ }
     }
     // 原生 Media Session（Capacitor APK）
+    // 注意：不传 artwork —— @capgo/capacitor-media-session 会在主线程同步下载
+    // http(s) 封面，触发 NetworkOnMainThreadException 导致闪退（插件缺陷）。
+    // 故 Android 端仅同步文字信息（歌名/歌手/专辑），封面不显示。
     const nms = nativeMS();
     if (nms && nms.setMetadata) {
       try {
-        const cover = makeCoverUrl(song);
         nms.setMetadata({
           title: song.title || "未知曲目",
           artist: song.artist || "未知歌手",
           album: song.album || "",
-          artwork: cover ? [{ src: cover, sizes: "512x512", type: cover.indexOf("data:image") === 0 ? "image/svg+xml" : "image/jpeg" }] : []
         });
       } catch (e) { /* 忽略 */ }
     }

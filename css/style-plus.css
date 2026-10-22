@@ -694,3 +694,16 @@ body.rail-mini .nav-dot{position:absolute;top:6px;right:12px}
   .wb-pane,.resume-item,.wb-q-item{animation:none;transition:none}
   .resume-item:hover,.wb-q-item:hover{transform:none}
 }
+
+/* ============================================================
+   BUGFIX 补丁 v1.1（2026-10-23）
+   修复：打开播放队列时，遮罩（queue-scrim）在沉浸模式 / 窄屏下
+   只盖住屏幕右半（left 仍为 --sidebar-w），背景出现垂直割裂。
+   同时修复沉浸模式下队列抽屉底部悬空（播放条已隐藏）。
+   成因：原样式只给抽屉写了沉浸/窄屏归零，漏了配套遮罩与 bottom。
+   ============================================================ */
+body.immersive .queue-drawer { left: 0; bottom: 0; }
+body.immersive .queue-scrim { left: 0; bottom: 0; }
+@media (max-width: 768px) {
+  .queue-scrim { left: 0; }
+}

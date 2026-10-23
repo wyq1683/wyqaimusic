@@ -347,6 +347,38 @@
     bus.emit("player:error", { song: state.current });
   });
 
+  /* ==================== 频谱旁路（captureStream，不改原生播放链路） ==================== */
+  let specCtx = null, specAnalyser = null, specData = null, specOK = false, specFailed = false;
+  function setupSpectrum() {
+    if (specOK) return true;
+    if (specFailed || !audio.captureStream) return false; // 失败后不再重试，避免每帧刷错误
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) { specFailed = true; return false; }
+      specCtx = new AC();
+      specCtx.addEventListener("error", function () { specFailed = true; specOK = false; });
+      const src = specCtx.createMediaStreamSource(audio.captureStream());
+      specAnalyser = specCtx.createAnalyser();
+      specAnalyser.fftSize = 128;
+      specAnalyser.smoothingTimeConstant = 0.8;
+      src.connect(specAnalyser); // 只观察，不接 destination
+      specData = new Uint8Array(specAnalyser.frequencyBinCount);
+      specOK = true;
+      return true;
+    } catch (e) {
+      specFailed = true;
+      try { if (specCtx) specCtx.close(); } catch (err) { /* ignore */ }
+      return false;
+    }
+  }
+  // 返回 64 个 0-255 的频段值；不支持时返回 null（调用方降级为模拟律动）
+  function getSpectrum() {
+    if (!setupSpectrum()) return null;
+    if (specCtx.state === "suspended") { try { specCtx.resume(); } catch (e) { /* ignore */ } }
+    specAnalyser.getByteFrequencyData(specData);
+    return specData;
+  }
+
   /* ==================== 导出 ==================== */
   setupMediaSession();
   setVolume(state.volume);
@@ -356,6 +388,6 @@
     play, pause, toggle, next, prev, seekTo,
     playList, playAt, setQueue, queueList, currentSong,
     setVolume, toggleMute, setBoost, toggleShuffle, cycleRepeat,
-    loadSong, fetchLyrics, updateMediaSession,
+    loadSong, fetchLyrics, updateMediaSession, getSpectrum,
   };
 })(window);

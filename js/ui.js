@@ -790,11 +790,94 @@
       const on = t.dataset.dtab === drawerTab;
       t.classList.toggle("active", on);
       t.setAttribute("aria-selected", on);
-      $("#drawerQueue").hidden = !on;
-      $("#drawerLyric").hidden = on;
     });
+    $("#drawerQueue").hidden = drawerTab !== "queue";
+    $("#drawerLyric").hidden = drawerTab !== "lyric";
+    $("#drawerLook").hidden = drawerTab !== "look";
     if (drawerTab === "queue") renderQueuePane();
-    else renderLyricPane();
+    else if (drawerTab === "lyric") renderLyricPane();
+    else renderLookPane();
+  }
+
+  /* ---- 工作台第三 Tab：外观（主题 / 强调色 / 背景 / 模糊 / 透明度）---- */
+  function renderLookPane() {
+    const pane = $("#drawerLook");
+    const s = C.getSettings();
+    const accents = [
+      { name: "跟随歌曲", val: "" },
+      { name: "极光紫", val: "#7c5cff" },
+      { name: "霓虹粉", val: "#ff5c9d" },
+      { name: "湖水蓝", val: "#38bdf8" },
+      { name: "青柠绿", val: "#3ddc97" },
+      { name: "落日橙", val: "#ff9a3d" },
+      { name: "警戒红", val: "#ff5c6c" },
+    ];
+    const bgs = [
+      { id: "aurora", name: "极光" },
+      { id: "desktop", name: "桌面" },
+      { id: "mobile", name: "移动" },
+      { id: "none", name: "纯色" },
+    ];
+    pane.innerHTML =
+      '<div class="look-block"><div class="look-label">主题</div><div class="chip-row" id="lookTheme">' +
+      '<button class="chip' + (s.theme === "dark" ? " active" : "") + '" data-ltheme="dark">深色</button>' +
+      '<button class="chip' + (s.theme === "light" ? " active" : "") + '" data-ltheme="light">浅色</button></div></div>' +
+      '<div class="look-block"><div class="look-label">强调色</div><div class="swatches" id="lookAccents">' +
+      accents.map((a) =>
+        '<button class="swatch' + (s.accent === a.val ? " active" : "") + '" data-laccent="' + a.val + '" title="' + a.name + '" style="' +
+        (a.val ? "background:" + a.val : "background:conic-gradient(#7c5cff,#ff5c9d,#38bdf8,#7c5cff)") + '"></button>'
+      ).join("") +
+      "</div></div>" +
+      '<div class="look-block"><div class="look-label">背景</div><div class="bg-picker" id="lookBg">' +
+      bgs.map((b) => '<button class="bg-preset' + (s.bgPreset === b.id ? " active" : "") + '" data-lbg="' + b.id + '" title="' + b.name + '" aria-label="' + b.name + '" style="' +
+        (b.id === "desktop" ? "background-image:url('assets/bg-desktop.jpg')" : b.id === "mobile" ? "background-image:url('assets/bg-mobile.jpg')" : b.id === "none" ? "background:var(--bg-2)" : "background:linear-gradient(135deg,#1a1c2e,#101322)") +
+        '"></button>').join("") +
+      C.BG_GRADIENTS.map((g, i) => '<button class="bg-preset' + (s.bgPreset === "grad:" + i ? " active" : "") + '" data-lbg="grad:' + i + '" title="' + g.name + '" aria-label="' + g.name + '" style="background:' + g.value + '"></button>').join("") +
+      "</div>" +
+      '<div class="bg-custom-row"><label class="btn btn-ghost bg-upload">' + C.icon("image", 13) +
+      ' 上传<input type="file" id="lookBgFile" accept="image/*" hidden /></label>' +
+      (s.bgImage ? '<button class="btn btn-ghost" id="lookBgUse">我的图片</button>' : "") +
+      "</div></div>" +
+      '<div class="look-block"><div class="look-label">背景模糊<span class="look-val" id="lookBlurVal">' + s.bgBlur + "px</span></div>" +
+      '<input type="range" class="range" id="lookBlur" min="0" max="30" value="' + s.bgBlur + '" aria-label="背景模糊" /></div>' +
+      '<div class="look-block"><div class="look-label">界面透明度<span class="look-val" id="lookGlassVal">' + s.glass + "%</span></div>" +
+      '<input type="range" class="range" id="lookGlass" min="0" max="100" value="' + s.glass + '" aria-label="界面透明度" /></div>' +
+      '<div class="look-tip">' + C.icon("sparkle", 13) + " 正在播放页支持全屏沉浸与横屏模式</div>";
+
+    const refresh = () => renderLookPane();
+    $$("[data-ltheme]", pane).forEach((b) => b.addEventListener("click", () => { C.saveSettings({ theme: b.dataset.ltheme }); refresh(); }));
+    $$("[data-laccent]", pane).forEach((b) => b.addEventListener("click", () => {
+      C.saveSettings({ accent: b.dataset.laccent });
+      if (!b.dataset.laccent && global.App.Player && global.App.Player.currentSong()) C.applySongAccent(global.App.Player.currentSong());
+      refresh();
+    }));
+    $$("[data-lbg]", pane).forEach((b) => b.addEventListener("click", () => { C.saveSettings({ bgPreset: b.dataset.lbg }); refresh(); }));
+    const bgFile = $("#lookBgFile", pane);
+    if (bgFile) bgFile.addEventListener("change", () => {
+      const f = bgFile.files && bgFile.files[0];
+      if (!f) return;
+      if (!/^image\//.test(f.type)) { toast("请选择图片文件", "error"); return; }
+      C.compressImage(f, 1600).then((data) => {
+        if (!data) { toast("图片读取失败", "error"); return; }
+        C.saveSettings({ bgImage: data, bgPreset: "custom" });
+        if (C.getSettings().bgImage !== data) { toast("图片过大，请换一张", "error"); return; }
+        C.applyBgPreset("custom");
+        toast("背景已更新", "success");
+        refresh();
+      });
+    });
+    const bgUse = $("#lookBgUse", pane);
+    if (bgUse) bgUse.addEventListener("click", () => { C.saveSettings({ bgPreset: "custom" }); refresh(); });
+    const blur = $("#lookBlur", pane);
+    if (blur) blur.addEventListener("input", () => {
+      C.saveSettings({ bgBlur: parseInt(blur.value, 10) });
+      $("#lookBlurVal", pane).textContent = blur.value + "px";
+    });
+    const glass = $("#lookGlass", pane);
+    if (glass) glass.addEventListener("input", () => {
+      C.saveSettings({ glass: parseInt(glass.value, 10) });
+      $("#lookGlassVal", pane).textContent = glass.value + "%";
+    });
   }
 
   function renderQueuePane() {

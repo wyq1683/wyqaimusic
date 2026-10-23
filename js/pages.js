@@ -531,7 +531,7 @@
   function social() {
     let html =
       '<div class="social-tabs">' +
-      '<button class="stab' + (socialState.tab === "friends" ? " active" : "") + '" data-stab="friends">' + C.icon("users", 15) + " 好友</button>" +
+      '<button class="stab' + (socialState.tab === "friends" ? " active" : "") + '" data-stab="friends">' + C.icon("users", 15) + " 关注</button>" +
       '<button class="stab' + (socialState.tab === "online" ? " active" : "") + '" data-stab="online">' + C.icon("trend", 15) + " 在线</button>" +
       '<button class="stab' + (socialState.tab === "inbox" ? " active" : "") + '" data-stab="inbox">' + C.icon("inbox", 15) + " 收件箱<span class='stab-badge' id='socialBadge' hidden>0</span></button>" +
       "</div>";
@@ -588,7 +588,7 @@
         };
         const renderFriends = (list) => {
           if (!socialState.friends.length) {
-            list.innerHTML = UI().emptyState("users", "还没有好友", "在上方搜索用户名，添加第一个好友吧");
+            list.innerHTML = UI().emptyState("users", "还没有关注任何人", "在上方搜索用户名，关注感兴趣的人吧");
             return;
           }
           list.innerHTML = '<div class="menu-list">' + socialState.friends.map((f) =>
@@ -599,7 +599,7 @@
             '<div class="ur-sub">@' + C.esc(f.username) + (f.online ? " · 在线" : "") + "</div></div>" +
             '<div class="ur-ops">' +
             '<a class="btn btn-ghost" style="height:30px;padding:0 12px;font-size:0.76rem" href="#/user/' + f.id + '">主页</a>' +
-            '<button class="btn btn-danger" style="height:30px;padding:0 12px;font-size:0.76rem" data-rm="' + f.id + '">删除</button>' +
+            '<button class="btn btn-danger" style="height:30px;padding:0 12px;font-size:0.76rem" data-rm="' + f.id + '">取消关注</button>' +
             "</div></div>"
           ).join("") + "</div>";
           $$("[data-rm]", list).forEach((b) =>
@@ -725,11 +725,27 @@
         "</div></div>" +
         '<div class="ph-actions"><button class="btn btn-primary" id="udAdd">' + C.icon("user-plus", 14) + " 加好友</button></div>" +
         "</div>";
+      // 关注（后端以好友关系承载）：先查关系，再决定按钮文案与动作
       const add = $("#udAdd", el);
-      if (add) add.addEventListener("click", async () => {
-        const rr = await C.social.addFriend(p.id, true);
-        UI().toast(rr.ok ? "已发送好友请求" : rr.error || "操作失败", rr.ok ? "success" : "error");
-      });
+      if (add && C.isLoggedIn()) {
+        const paint = (on) => {
+          add.className = "btn " + (on ? "btn-ghost" : "btn-primary");
+          add.innerHTML = C.icon(on ? "check" : "user-plus", 14) + (on ? " 已关注" : " 关注");
+          add.setAttribute("aria-pressed", on ? "true" : "false");
+        };
+        C.social.listFriends().then((fr) => {
+          paint(fr.ok && (fr.data || []).some((f) => Number(f.id) === Number(p.id)));
+        });
+        add.addEventListener("click", async () => {
+          const on = add.getAttribute("aria-pressed") === "true";
+          const rr = on ? await C.social.removeFriend(p.id) : await C.social.addFriend(p.id, true);
+          UI().toast(rr.ok ? (on ? "已取消关注" : "已关注") : rr.error || "操作失败", rr.ok ? "success" : "error");
+          if (rr.ok) paint(!on);
+        });
+      } else if (add) {
+        add.textContent = "登录后关注";
+        add.addEventListener("click", () => UI().openAuthModal("login"));
+      }
     });
     return el;
   }
@@ -915,6 +931,7 @@
     let npSong = song0; // 跟随 player:changed 原地更新，避免整页重挂载
     let html =
       '<div class="np-page">' +
+      '<button class="np-mode-exit" id="npModeExit" type="button" hidden>' + C.icon("close", 13) + " 退出</button>" +
       '<div class="np-cover-wrap">' +
       '<div class="np-cover spinning" id="npCover" style="background:linear-gradient(150deg,' + npSong.c.from + "," + npSong.c.to + ')">' +
       (npSong.coverUrl ? '<img src="' + C.esc(npSong.coverUrl) + '" alt="' + C.esc(npSong.title) + '" />' : (npSong.emoji || "🎵")) + "</div>" +
@@ -925,6 +942,12 @@
       '<span class="pf-tag">' + (npSong.external ? (npSong.id.indexOf("ne_") === 0 ? "网易云音乐" : npSong.id.indexOf("qq_") === 0 ? "QQ音乐" : "Audius") : "本地曲库") + "</span>" +
       '<span class="pf-tag">' + (npSong.durStr || "") + "</span>" +
       "</div></div>" +
+      '<div class="np-modes">' +
+      '<button class="icon-btn" id="npImmersive" type="button" aria-label="全屏沉浸" title="全屏沉浸" aria-pressed="false">' + C.icon("expand", 17) + "</button>" +
+      '<button class="icon-btn" id="npLandscape" type="button" aria-label="横屏模式" title="横屏模式" aria-pressed="false">' +
+      '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="10" rx="2"/><path d="M8 21l-3-3 3-3"/><path d="M16 3l3 3-3 3"/></svg>' +
+      "</button>" +
+      "</div>" +
       '<div class="np-controls">' +
       '<button class="icon-btn" id="npPrev" type="button" aria-label="上一首" title="上一首"><svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg></button>' +
       '<button class="play-btn" id="npPlay" type="button" aria-label="播放或暂停" title="播放/暂停">' +
@@ -938,6 +961,7 @@
       '<div class="pb-seek"><div class="pb-seek-fill" id="npSeekFill"></div><div class="pb-seek-knob" id="npSeekKnob"></div><input type="range" id="npSeek" min="0" max="1000" value="0" aria-label="播放进度" /></div>' +
       '<span class="pb-time" id="npTimeDur">0:00</span>' +
       "</div>" +
+      '<canvas class="np-spec" id="npSpec" aria-hidden="true"></canvas>' +
       '<div class="ph-actions" style="justify-content:center">' +
       '<button class="icon-btn" id="npFav" aria-label="收藏" aria-pressed="' + C.isFavorite(npSong.id) + '">' + C.icon(C.isFavorite(npSong.id) ? "heart-fill" : "heart", 19) + "</button>" +
       '<button class="icon-btn" id="npAddPl" aria-label="添加到歌单">' + C.icon("playlist", 19) + "</button>" +
@@ -1036,6 +1060,88 @@
     bus.on("player:time", onNpTime);
     onNpState(P().state.playing); // 立即同步当前状态
 
+    // ---- 全屏沉浸 / 横屏模式（P：2.1 回填）----
+    const modeExit = $("#npModeExit", el);
+    function syncModes() {
+      const imm = document.body.classList.contains("immersive");
+      const land = document.body.classList.contains("np-landscape");
+      modeExit.hidden = !(imm || land);
+      $("#npImmersive", el).setAttribute("aria-pressed", imm);
+      $("#npLandscape", el).setAttribute("aria-pressed", land);
+    }
+    function setImmersive(on) {
+      document.body.classList.toggle("immersive", on);
+      if (on) {
+        try {
+          const p = document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();
+          if (p && p.catch) p.catch(function () {});
+        } catch (e) { /* 不支持全屏时仅做布局沉浸 */ }
+      } else if (document.fullscreenElement && document.exitFullscreen) {
+        document.exitFullscreen().catch(function () {});
+      }
+      syncModes();
+    }
+    function setLandscape(on) {
+      document.body.classList.toggle("np-landscape", on);
+      try {
+        if (on) {
+          if (screen.orientation && screen.orientation.lock) screen.orientation.lock("landscape").catch(function () {});
+        } else if (screen.orientation && screen.orientation.unlock) {
+          screen.orientation.unlock();
+        }
+      } catch (e) { /* 桌面浏览器不支持锁方向 */ }
+      syncModes();
+    }
+    $("#npImmersive", el).addEventListener("click", () => setImmersive(!document.body.classList.contains("immersive")));
+    $("#npLandscape", el).addEventListener("click", () => setLandscape(!document.body.classList.contains("np-landscape")));
+    modeExit.addEventListener("click", () => { setImmersive(false); setLandscape(false); });
+    const onFsChange = () => { if (!document.fullscreenElement) setImmersive(false); };
+    document.addEventListener("fullscreenchange", onFsChange);
+    const onEscMode = (e) => {
+      if (e.key !== "Escape") return;
+      if (document.body.classList.contains("np-landscape")) setLandscape(false);
+      else if (document.body.classList.contains("immersive")) setImmersive(false);
+    };
+    document.addEventListener("keydown", onEscMode);
+
+    // ---- 频谱：真实信号优先，无信号（跨域/静音）降级为低幅律动 ----
+    const specCanvas = $("#npSpec", el);
+    const sctx = specCanvas.getContext("2d");
+    let specRAF = 0;
+    function drawSpec() {
+      const dpr = window.devicePixelRatio || 1;
+      const w = specCanvas.clientWidth || 420;
+      const h = 40;
+      if (specCanvas.width !== Math.round(w * dpr)) {
+        specCanvas.width = Math.round(w * dpr);
+        specCanvas.height = Math.round(h * dpr);
+      }
+      sctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      sctx.clearRect(0, 0, w, h);
+      const data = P().getSpectrum ? P().getSpectrum() : null;
+      const bars = 32;
+      const bw = w / bars;
+      const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#7c5cff";
+      const playing = P().state.playing;
+      for (let i = 0; i < bars; i++) {
+        let v;
+        if (data) {
+          const idx = Math.floor(Math.pow(i / bars, 1.3) * data.length * 0.7);
+          v = data[idx] / 255;
+        } else {
+          v = playing ? 0.18 + Math.abs(Math.sin(Date.now() / 240 + i * 0.42)) * 0.22 : 0.05;
+        }
+        const bh = Math.max(2, Math.round(v * h));
+        sctx.fillStyle = accent;
+        sctx.globalAlpha = 0.28 + v * 0.72;
+        sctx.fillRect(i * bw + bw * 0.22, h - bh, bw * 0.56, bh);
+      }
+      sctx.globalAlpha = 1;
+      specRAF = requestAnimationFrame(drawSpec);
+    }
+    drawSpec();
+    syncModes();
+
     // 歌词行高亮
     const onLyricLine = (idx) => {
       $$("#npLyricPane .lyric-line", el).forEach((l, i) => {
@@ -1084,6 +1190,10 @@
         bus.off("player:changed", onSongChanged);
         bus.off("player:state", onNpState);
         bus.off("player:time", onNpTime);
+        if (specRAF) cancelAnimationFrame(specRAF);
+        document.removeEventListener("keydown", onEscMode);
+        document.removeEventListener("fullscreenchange", onFsChange);
+        document.body.classList.remove("immersive", "np-landscape");
         obs.disconnect();
       }
     });
@@ -1129,13 +1239,18 @@
       accents.map((a) => '<button class="swatch' + (s.accent === a.val ? " active" : "") + '" data-accent="' + a.val + '" title="' + a.name + '" style="' + (a.val ? "background:" + a.val + ";color:" + a.val : "background:conic-gradient(#7c5cff,#ff5c9d,#38bdf8,#7c5cff)") + '"></button>').join("") +
       "</div></div></div>" +
 
-      '<div class="set-row"><div class="set-info"><div class="set-name">背景</div><div class="set-desc">极光动效 / 图片背景</div></div>' +
-      '<div class="set-ctrl"><div class="bg-presets" id="stBgs">' +
+      '<div class="set-row" style="display:block"><div class="set-info"><div class="set-name">背景</div><div class="set-desc">极光 / 8 组渐变 / 上传自己的图片</div></div>' +
+      '<div class="bg-picker" id="stBgs">' +
       bgPresetBtn("aurora", "极光", "", s.bgPreset) +
       bgPresetBtn("desktop", "桌面", "assets/bg-desktop.jpg", s.bgPreset) +
       bgPresetBtn("mobile", "移动", "assets/bg-mobile.jpg", s.bgPreset) +
       bgPresetBtn("none", "纯色", "", s.bgPreset) +
-      "</div></div></div>" +
+      C.BG_GRADIENTS.map((g, i) => bgPresetBtn("grad:" + i, g.name, "", s.bgPreset, g.value)).join("") +
+      "</div>" +
+      '<div class="bg-custom-row">' +
+      '<label class="btn btn-ghost bg-upload">' + C.icon("image", 14) + ' 上传图片<input type="file" id="stBgFile" accept="image/*" hidden /></label>' +
+      (s.bgImage ? '<button class="btn btn-ghost" id="stBgUse">使用我的图片</button><button class="btn btn-danger" id="stBgClear">移除</button>' : "") +
+      "</div></div>" +
 
       '<div class="set-row"><div class="set-info"><div class="set-name">背景模糊</div><div class="set-desc">数值越大背景越朦胧</div></div>' +
       '<div class="set-ctrl"><input type="range" class="range" id="stBlur" min="0" max="30" value="' + s.bgBlur + '" /><span class="range-val" id="stBlurVal">' + s.bgBlur + "px</span></div></div>" +
@@ -1202,28 +1317,44 @@
       b.addEventListener("click", () => {
         const v = b.dataset.bg;
         C.saveSettings({ bgPreset: v });
-        applyBg(v);
+        C.applyBgPreset(v);
         $$("[data-bg]", el).forEach((x) => x.classList.toggle("active", x === b));
       })
     );
-    function applyBg(v) {
-      const aurora = $(".bg-aurora");
-      const stars = $("#stars");
-      if (v === "none") {
-        aurora.style.display = "none";
-        stars.style.display = "none";
-        document.body.style.background = "var(--bg-0)";
-      } else if (v === "aurora") {
-        aurora.style.display = "";
-        stars.style.display = "";
-        document.body.style.background = "";
-      } else {
-        aurora.style.display = "none";
-        stars.style.display = "none";
-        document.body.style.background = "url('assets/" + v + ".jpg') center/cover fixed no-repeat";
-      }
+    // 上传自定义背景（压缩后存 localStorage）
+    const bgFile = $("#stBgFile", el);
+    if (bgFile) bgFile.addEventListener("change", () => {
+      const f = bgFile.files && bgFile.files[0];
+      if (!f) return;
+      if (!/^image\//.test(f.type)) { UI().toast("请选择图片文件", "error"); return; }
+      C.compressImage(f, 1600).then((data) => {
+        if (!data) { UI().toast("图片读取失败", "error"); return; }
+        C.saveSettings({ bgImage: data, bgPreset: "custom" });
+        if (C.getSettings().bgImage !== data) { UI().toast("图片过大，请换一张", "error"); return; }
+        C.applyBgPreset("custom");
+        UI().toast("背景已更新", "success");
+        global.App.Router.refresh();
+      });
+    });
+    const bgUse = $("#stBgUse", el);
+    if (bgUse) bgUse.addEventListener("click", () => {
+      C.saveSettings({ bgPreset: "custom" });
+      C.applyBgPreset("custom");
+      $$("[data-bg]", el).forEach((x) => x.classList.remove("active"));
+      UI().toast("已启用自定义背景", "success");
+    });
+    const bgClear = $("#stBgClear", el);
+    if (bgClear) bgClear.addEventListener("click", () => {
+      C.saveSettings({ bgImage: "", bgPreset: "aurora" });
+      C.applyBgPreset("aurora");
+      UI().toast("已移除自定义背景", "success");
+      global.App.Router.refresh();
+    });
+    C.applyBgPreset(s.bgPreset);
+    if (s.bgPreset === "custom") {
+      const use = $("#stBgUse", el);
+      if (use) use.classList.add("active");
     }
-    applyBg(s.bgPreset);
     // 滑杆
     $("#stBlur", el).addEventListener("input", (e) => {
       C.saveSettings({ bgBlur: parseInt(e.target.value, 10) });
@@ -1267,9 +1398,15 @@
     );
     return el;
 
-    function bgPresetBtn(key, name, img, cur) {
-      const style = img ? "background-image:url('" + img + "')" : key === "aurora" ? "background:linear-gradient(135deg,#1a1c2e,#101322)" : "background:var(--bg-2)";
-      return '<button class="bg-preset' + (cur === key ? " active" : "") + '" data-bg="' + key + '" title="' + name + '" style="' + style + '"></button>';
+    function bgPresetBtn(key, name, img, cur, grad) {
+      const style = img
+        ? "background-image:url('" + img + "')"
+        : grad
+          ? "background:" + grad
+          : key === "aurora"
+            ? "background:linear-gradient(135deg,#1a1c2e,#101322)"
+            : "background:var(--bg-2)";
+      return '<button class="bg-preset' + (cur === key ? " active" : "") + '" data-bg="' + key + '" title="' + name + '" aria-label="' + name + '" style="' + style + '"></button>';
     }
   }
 

@@ -555,6 +555,7 @@
     boost: 1,
     haptics: true,
     bgPreset: "aurora",
+    bgImage: "",           // 自定义背景（压缩后的 dataURL）
     sidebarMini: false,
   };
   function getSettings() {
@@ -583,6 +584,94 @@
       const cur = global.App.Player && global.App.Player.current && global.App.Player.current.song;
       setAccent((cur && cur.themeColor) || "#7c5cff");
     }
+    applyBgPreset(s.bgPreset);
+  }
+
+  /* ---- 背景预设：极光 / 桌面 / 移动 / 纯色 / 8 组渐变 / 自定义图片 ---- */
+  const BG_GRADIENTS = [
+    { name: "深蓝默认", value: "linear-gradient(135deg, #0a0a12 0%, #1a1a2e 100%)" },
+    { name: "紫蓝渐变", value: "linear-gradient(135deg, #1a1a3e 0%, #4d6bfe 100%)" },
+    { name: "青蓝深海", value: "linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)" },
+    { name: "暗夜紫", value: "linear-gradient(135deg, #2b1055 0%, #7597de 100%)" },
+    { name: "森林", value: "linear-gradient(135deg, #134e5e 0%, #71b280 100%)" },
+    { name: "落日", value: "linear-gradient(135deg, #ee0979 0%, #ff6a00 100%)" },
+    { name: "极光", value: "linear-gradient(135deg, #00c9ff 0%, #92fe9d 100%)" },
+    { name: "星空", value: "linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%)" },
+  ];
+
+  function applyBgPreset(v) {
+    const aurora = document.querySelector(".bg-aurora");
+    const stars = document.querySelector("#stars");
+    const layer = document.querySelector("#bgImage");
+    if (!aurora || !stars || !layer) return;
+    const s = getSettings();
+    const blur = Math.max(0, Math.min(30, Number(s.bgBlur) || 0));
+    const showImage = (src) => {
+      layer.hidden = false;
+      layer.style.backgroundImage = 'url("' + src + '")';
+      layer.style.filter = blur ? "blur(" + blur + "px)" : "none";
+    };
+    const hideImage = () => {
+      layer.hidden = true;
+      layer.style.backgroundImage = "";
+      layer.style.filter = "none";
+    };
+    if (v === "none") {
+      aurora.style.display = "none";
+      stars.style.display = "none";
+      hideImage();
+      document.body.style.background = "var(--bg-0)";
+    } else if (!v || v === "aurora") {
+      aurora.style.display = "";
+      stars.style.display = "";
+      hideImage();
+      document.body.style.background = "";
+    } else if (v === "desktop" || v === "mobile") {
+      aurora.style.display = "none";
+      stars.style.display = "none";
+      document.body.style.background = "var(--bg-0)";
+      showImage("assets/" + v + ".jpg");
+    } else if (v === "custom" && s.bgImage) {
+      aurora.style.display = "none";
+      stars.style.display = "none";
+      document.body.style.background = "var(--bg-0)";
+      showImage(s.bgImage);
+    } else if (v.indexOf("grad:") === 0) {
+      const g = BG_GRADIENTS[parseInt(v.slice(5), 10)];
+      aurora.style.display = "none";
+      stars.style.display = "none";
+      hideImage();
+      document.body.style.background = g ? g.value : "var(--bg-0)";
+    } else {
+      aurora.style.display = "";
+      stars.style.display = "";
+      hideImage();
+      document.body.style.background = "";
+    }
+  }
+
+  // 图片压缩：长边 ≤1600，JPEG 0.82，避免 localStorage 超限
+  function compressImage(file, maxW) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = function () {
+        const limit = maxW || 1600;
+        const w = Math.min(img.width, limit);
+        const h = Math.round((img.height * w) / img.width);
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+        let dataUrl;
+        try { dataUrl = canvas.toDataURL("image/jpeg", 0.82); }
+        catch (e) { dataUrl = canvas.toDataURL("image/png"); }
+        URL.revokeObjectURL(url);
+        resolve(dataUrl);
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); resolve(null); };
+      img.src = url;
+    });
   }
 
   /* ---- 主题强调色 ---- */
@@ -626,7 +715,7 @@
   /* ==================== 导出 ==================== */
   global.App = global.App || {};
   global.App.Core = {
-    $, $$, el, fmtDur, fmtTime, fmtNum, esc, debounce, icon, gradientFor,
+    $, $$, el, fmtDur, fmtTime, fmtNum, esc, debounce, icon, gradientFor, applyBgPreset, BG_GRADIENTS, compressImage,
     bus, read, write,
     K, PREFIX,
     getToken, setToken, useApi, api, apiGet,

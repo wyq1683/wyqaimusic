@@ -1924,3 +1924,149 @@ textarea.field-input { height: auto; padding: 10px 13px; resize: vertical; }
   .np-cover { width: min(240px, 66vw); font-size: 3.2rem; }
   .toast-wrap { bottom: calc(var(--player-h) + var(--tabbar-h) + 16px); }
 }
+
+/* ==================== 7. 正在播放页：沉浸 / 横屏 / 频谱 ==================== */
+.np-modes { display: flex; justify-content: center; gap: 6px; margin-top: 12px; }
+.np-spec {
+  display: block;
+  width: 100%;
+  max-width: 520px;
+  height: 40px;
+  margin: 4px auto 0;
+  opacity: 0.8;
+}
+.np-mode-exit {
+  position: fixed;
+  top: 14px; right: 16px;
+  z-index: 70;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 13px;
+  border-radius: var(--r-full);
+  background: var(--glass-bg-strong);
+  border: 1px solid var(--hairline-strong);
+  color: var(--text-1);
+  font-size: 0.78rem;
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  box-shadow: var(--shadow-2);
+}
+.np-mode-exit[hidden] { display: none; }
+
+/* 全屏沉浸：隐去外围框架，只留播放页 */
+body.immersive .sidebar,
+body.immersive .topbar,
+body.immersive .tabbar,
+body.immersive .player-bar,
+body.immersive .drawer { display: none !important; }
+body.immersive .main-wrap { width: 100%; }
+body.immersive .view { padding: 0; }
+body.immersive .np-page {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 40px 32px;
+  min-height: 100dvh;
+  justify-content: center;
+}
+body.immersive .np-cover { width: min(340px, 42vh); }
+body.immersive .np-lyrics { height: min(420px, 46vh); }
+
+/* 横屏播放：左封面 / 右歌词，铺满视口 */
+body.np-landscape .sidebar,
+body.np-landscape .topbar,
+body.np-landscape .tabbar,
+body.np-landscape .player-bar,
+body.np-landscape .drawer { display: none !important; }
+body.np-landscape .main-wrap { width: 100%; }
+body.np-landscape .view { padding: 0; }
+body.np-landscape .np-page {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.95fr) minmax(0, 1.05fr);
+  align-items: center;
+  gap: 28px;
+  height: 100dvh;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 18px 28px;
+  overflow: hidden;
+}
+body.np-landscape .np-cover-wrap { gap: 8px; }
+body.np-landscape .np-cover { width: min(34vh, 26vw); }
+body.np-landscape .np-title { font-size: 1.12rem; text-align: left; }
+body.np-landscape .np-artist { text-align: left; }
+body.np-landscape .np-badge-row { justify-content: flex-start; }
+body.np-landscape .np-controls { margin: 8px 0 0; }
+body.np-landscape .np-progress { margin-bottom: 0; }
+body.np-landscape .np-spec { display: none; }
+body.np-landscape .social-tabs { margin-bottom: 8px; }
+body.np-landscape .np-lyrics { height: min(46vh, 320px); padding: 6% 4px; }
+
+/* ==================== 8. 工作台「外观」Tab ==================== */
+.look-block { margin-bottom: 20px; }
+.look-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.74rem;
+  color: var(--text-3);
+  margin-bottom: 9px;
+}
+.look-val { font-family: var(--font-num); color: var(--text-2); }
+.look-block .range { width: 100%; }
+.look-tip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  color: var(--text-3);
+  padding-top: 10px;
+  border-top: 1px solid var(--hairline);
+}
+
+/* ==================== 9. 背景系统（渐变 / 自定义图片） ==================== */
+.bg-image {
+  position: fixed;
+  inset: -48px; /* 超出视口，30px 模糊也不露边 */
+  z-index: 0;
+  pointer-events: none;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  transition: filter var(--dur-2) var(--ease-out);
+}
+.bg-picker {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+  margin: 12px 0 10px;
+}
+.bg-picker .bg-preset { width: 100%; height: 46px; }
+.bg-custom-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.bg-upload {
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  padding: 0 12px;
+  font-size: 0.78rem;
+}
+.bg-upload input { display: none; }
+
+/* 矮屏横屏（手机旋转后）：压缩左栏，避免底部操作被裁 */
+@media (max-height: 480px) {
+  body.np-landscape .np-page {
+    padding: 10px 18px;
+    gap: 18px;
+    grid-template-columns: minmax(220px, 0.85fr) minmax(0, 1.15fr);
+  }
+  body.np-landscape .np-cover { width: min(28vh, 20vw); }
+  body.np-landscape .np-title { font-size: 1rem; }
+  body.np-landscape .np-badge-row,
+  body.np-landscape .np-modes,
+  body.np-landscape .ph-actions { display: none; }
+  body.np-landscape .np-controls { margin: 2px 0 0; gap: 6px; }
+  body.np-landscape .np-lyrics { padding: 4% 2px; height: 72vh; }
+  body.np-landscape .social-tabs { margin-bottom: 2px; }
+}

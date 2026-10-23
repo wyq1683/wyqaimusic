@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Wave · 音乐播放器</title>
   <meta name="description" content="Wave 网页音乐播放器 — 网易云 / QQ音乐 / Audius 三音源，收藏、歌单、跨设备同步" />
-  <link rel="stylesheet" href="css/tokens.css?v=20261024" />
-  <link rel="stylesheet" href="css/base.css?v=20261024" />
-  <link rel="stylesheet" href="css/app.css?v=20261024" />
+  <link rel="stylesheet" href="css/tokens.css?v=20261025" />
+  <link rel="stylesheet" href="css/base.css?v=20261025" />
+  <link rel="stylesheet" href="css/app.css?v=20261025" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎵</text></svg>" />
 </head>
 <body>
@@ -85,7 +85,74 @@
 
       <!-- 视图挂载点 -->
       <main class="view" id="view" tabindex="-1"></main>
-    </div>
+
+      <!-- 底部播放条 -->
+      <footer class="player-bar" id="playerBar">
+        <div class="pb-song">
+          <button class="pb-cover" id="pbCover" type="button" aria-label="打开正在播放">
+            <span class="pb-cover-img" id="pbCoverImg"></span>
+            <span class="pb-cover-play" aria-hidden="true">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            </span>
+          </button>
+          <div class="pb-meta">
+            <div class="pb-title" id="pbTitle">未在播放</div>
+            <div class="pb-artist" id="pbArtist">选一首歌开始旅程</div>
+          </div>
+          <button class="icon-btn pb-fav" id="pbFav" type="button" aria-label="收藏当前歌曲" aria-pressed="false">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1 7.8 7.8 7.8-7.8 1-1a5.5 5.5 0 0 0 0-7.8z"/></svg>
+          </button>
+        </div>
+        <div class="pb-center">
+          <div class="pb-controls">
+            <button class="icon-btn" id="btnShuffle" type="button" aria-label="随机播放" aria-pressed="false" title="随机播放">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>
+            </button>
+            <button class="icon-btn" id="btnPrev" type="button" aria-label="上一首" title="上一首">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>
+            </button>
+            <button class="play-btn" id="btnPlay" type="button" aria-label="播放或暂停" title="播放/暂停">
+              <svg class="ic-play" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+              <svg class="ic-pause" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" hidden><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+            </button>
+            <button class="icon-btn" id="btnNext" type="button" aria-label="下一首" title="下一首">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6h2v12h-2z"/></svg>
+            </button>
+            <button class="icon-btn" id="btnRepeat" type="button" aria-label="循环模式" title="循环模式">
+              <svg class="ic-repeat" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2.1l4 4-4 4"/><path d="M3 7.5V6a3 3 0 0 1 3-3h14.1"/><path d="M7 21.9l-4-4 4-4"/><path d="M21 16.5V18a3 3 0 0 1-3 3H3.9"/></svg>
+              <svg class="ic-repeat-one" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" hidden><path d="M17 2.1l4 4-4 4"/><path d="M3 7.5V6a3 3 0 0 1 3-3h14.1"/><path d="M7 21.9l-4-4 4-4"/><path d="M21 16.5V18a3 3 0 0 1-3 3H3.9"/><path d="M11 10h4v1.5a1.5 1.5 0 0 1-1.5 1.5H13v1"/><path d="M13 15h-2v-2h2"/></svg>
+            </button>
+          </div>
+          <div class="pb-progress">
+            <span class="pb-time" id="timeCur">0:00</span>
+            <div class="pb-seek" id="seekWrap">
+              <div class="pb-seek-fill" id="seekFill"></div>
+              <div class="pb-seek-knob" id="seekKnob"></div>
+              <input type="range" id="seek" min="0" max="1000" value="0" aria-label="播放进度" />
+            </div>
+            <span class="pb-time" id="timeDur">0:00</span>
+          </div>
+        </div>
+        <div class="pb-extra">
+          <button class="icon-btn vol-btn" id="volBtn" type="button" aria-label="音量" title="音量">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 8v8a4.5 4.5 0 0 0 2.5-4z"/></svg>
+          </button>
+          <div class="vol-pop" id="volPop" hidden>
+            <input type="range" id="volRange" min="0" max="100" value="80" aria-label="音量滑块" />
+            <span id="volVal">80%</span>
+          </div>
+          <button class="icon-btn" id="btnLyric" type="button" aria-label="歌词" title="歌词" aria-pressed="false">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+          </button>
+          <button class="icon-btn" id="btnQueue" type="button" aria-label="播放队列" title="播放队列" aria-pressed="false">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h10M4 18h13"/></svg>
+          </button>
+          <button class="icon-btn" id="btnMore" type="button" aria-label="更多选项" title="更多" aria-haspopup="menu" aria-expanded="false">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
+          </button>
+        </div>
+      </footer>
+    </div><!-- /main-wrap -->
 
     <!-- 右侧抽屉：队列 / 歌词（桌面端） -->
     <aside class="drawer" id="drawer" aria-label="播放工作台" hidden>
@@ -104,72 +171,6 @@
       </div>
     </aside>
 
-    <!-- 底部播放条 -->
-    <footer class="player-bar" id="playerBar">
-      <div class="pb-song">
-        <button class="pb-cover" id="pbCover" type="button" aria-label="打开正在播放">
-          <span class="pb-cover-img" id="pbCoverImg"></span>
-          <span class="pb-cover-play" aria-hidden="true">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-          </span>
-        </button>
-        <div class="pb-meta">
-          <div class="pb-title" id="pbTitle">未在播放</div>
-          <div class="pb-artist" id="pbArtist">选一首歌开始旅程</div>
-        </div>
-        <button class="icon-btn pb-fav" id="pbFav" type="button" aria-label="收藏当前歌曲" aria-pressed="false">
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1 7.8 7.8 7.8-7.8 1-1a5.5 5.5 0 0 0 0-7.8z"/></svg>
-        </button>
-      </div>
-      <div class="pb-center">
-        <div class="pb-controls">
-          <button class="icon-btn" id="btnShuffle" type="button" aria-label="随机播放" aria-pressed="false" title="随机播放">
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>
-          </button>
-          <button class="icon-btn" id="btnPrev" type="button" aria-label="上一首" title="上一首">
-            <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>
-          </button>
-          <button class="play-btn" id="btnPlay" type="button" aria-label="播放或暂停" title="播放/暂停">
-            <svg class="ic-play" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-            <svg class="ic-pause" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" hidden><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
-          </button>
-          <button class="icon-btn" id="btnNext" type="button" aria-label="下一首" title="下一首">
-            <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6h2v12h-2z"/></svg>
-          </button>
-          <button class="icon-btn" id="btnRepeat" type="button" aria-label="循环模式" title="循环模式">
-            <svg class="ic-repeat" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2.1l4 4-4 4"/><path d="M3 7.5V6a3 3 0 0 1 3-3h14.1"/><path d="M7 21.9l-4-4 4-4"/><path d="M21 16.5V18a3 3 0 0 1-3 3H3.9"/></svg>
-            <svg class="ic-repeat-one" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" hidden><path d="M17 2.1l4 4-4 4"/><path d="M3 7.5V6a3 3 0 0 1 3-3h14.1"/><path d="M7 21.9l-4-4 4-4"/><path d="M21 16.5V18a3 3 0 0 1-3 3H3.9"/><path d="M11 10h4v1.5a1.5 1.5 0 0 1-1.5 1.5H13v1"/><path d="M13 15h-2v-2h2"/></svg>
-          </button>
-        </div>
-        <div class="pb-progress">
-          <span class="pb-time" id="timeCur">0:00</span>
-          <div class="pb-seek" id="seekWrap">
-            <div class="pb-seek-fill" id="seekFill"></div>
-            <div class="pb-seek-knob" id="seekKnob"></div>
-            <input type="range" id="seek" min="0" max="1000" value="0" aria-label="播放进度" />
-          </div>
-          <span class="pb-time" id="timeDur">0:00</span>
-        </div>
-      </div>
-      <div class="pb-extra">
-        <button class="icon-btn vol-btn" id="volBtn" type="button" aria-label="音量" title="音量">
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 8v8a4.5 4.5 0 0 0 2.5-4z"/></svg>
-        </button>
-        <div class="vol-pop" id="volPop" hidden>
-          <input type="range" id="volRange" min="0" max="100" value="80" aria-label="音量滑块" />
-          <span id="volVal">80%</span>
-        </div>
-        <button class="icon-btn" id="btnLyric" type="button" aria-label="歌词" title="歌词" aria-pressed="false">
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
-        </button>
-        <button class="icon-btn" id="btnQueue" type="button" aria-label="播放队列" title="播放队列" aria-pressed="false">
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h10M4 18h13"/></svg>
-        </button>
-        <button class="icon-btn" id="btnMore" type="button" aria-label="更多选项" title="更多" aria-haspopup="menu" aria-expanded="false">
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
-        </button>
-      </div>
-    </footer>
   </div>
 
   <!-- 移动端底部导航 -->
@@ -232,13 +233,13 @@
     </defs>
   </svg>
 
-  <script src="js/core.js?v=20261024"></script>
-  <script src="js/data.js?v=20261024"></script>
-  <script src="js/recommend.js?v=20261024"></script>
-  <script src="js/player.js?v=20261024"></script>
-  <script src="js/ui.js?v=20261024"></script>
-  <script src="js/router.js?v=20261024"></script>
-  <script src="js/pages.js?v=20261024"></script>
-  <script src="js/app.js?v=20261024"></script>
+  <script src="js/core.js?v=20261025"></script>
+  <script src="js/data.js?v=20261025"></script>
+  <script src="js/recommend.js?v=20261025"></script>
+  <script src="js/player.js?v=20261025"></script>
+  <script src="js/ui.js?v=20261025"></script>
+  <script src="js/router.js?v=20261025"></script>
+  <script src="js/pages.js?v=20261025"></script>
+  <script src="js/app.js?v=20261025"></script>
 </body>
 </html>

@@ -21,7 +21,7 @@
   /* ---- 文本 ---- */
   --text-1: #f3f5fb;
   --text-2: #a8aec4;
-  --text-3: #6a7089;
+  --text-3: #8a90a8;
 
   /* ---- 主题强调色（JS 随歌曲封面动态覆写） ---- */
   --accent: #7c5cff;
@@ -88,9 +88,12 @@ body[data-theme="light"] {
 
   --text-1: #171a26;
   --text-2: #565b6e;
-  --text-3: #8a90a5;
+  --text-3: #5f6478;
 
   --accent-soft: rgba(124, 92, 255, 0.12);
+  /* 浅色主题静态兜底（JS 会按主题重算 inline 变量） */
+  --accent-glow: rgba(124, 92, 255, 0.22);
+  --accent-text: #5b47c8;
   --shadow-1: 0 2px 8px rgba(20, 24, 40, 0.08);
   --shadow-2: 0 8px 28px rgba(20, 24, 40, 0.12);
   --shadow-3: 0 18px 56px rgba(20, 24, 40, 0.16);

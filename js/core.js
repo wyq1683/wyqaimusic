@@ -555,6 +555,7 @@
     boost: 1,
     haptics: true,
     bgPreset: "aurora",
+    sidebarMini: false,
   };
   function getSettings() {
     return Object.assign({}, defaultSettings, read(K.SETTINGS, {}));
@@ -567,6 +568,7 @@
   }
   function applySettings(s) {
     document.body.dataset.theme = s.theme;
+    document.body.classList.toggle("sb-mini", !!s.sidebarMini);
     if (s.accent) setAccent(s.accent);
     else if (global.App.Player && global.App.Player.current) applySongAccent(global.App.Player.current.song);
     document.querySelector(".bg-veil").style.background =
@@ -575,15 +577,31 @@
       document.querySelector(".bg-veil").style.background =
         "linear-gradient(180deg, rgba(238,240,247," + (s.bgBlur / 120).toFixed(3) + "), rgba(238,240,247," + (0.35 + s.glass / 200).toFixed(3) + "))";
     }
+    // 主题切换后按新主题重算派生强调色（inline 变量优先级高于 body[data-theme] 静态规则）
+    if (s.accent) setAccent(s.accent);
+    else {
+      const cur = global.App.Player && global.App.Player.current && global.App.Player.current.song;
+      setAccent((cur && cur.themeColor) || "#7c5cff");
+    }
   }
 
   /* ---- 主题强调色 ---- */
   function setAccent(color, soft) {
     const root = document.documentElement;
+    const light = document.body.dataset.theme === "light";
     root.style.setProperty("--accent", color);
-    root.style.setProperty("--accent-soft", soft || hexToRgba(color, 0.16));
-    root.style.setProperty("--accent-glow", hexToRgba(color, 0.45));
-    root.style.setProperty("--accent-text", mixLighten(color, 0.35));
+    root.style.setProperty("--accent-soft", soft || hexToRgba(color, light ? 0.12 : 0.16));
+    root.style.setProperty("--accent-glow", hexToRgba(color, light ? 0.22 : 0.45));
+    root.style.setProperty("--accent-text", light ? mixDarken(color, 0.4) : mixLighten(color, 0.35));
+  }
+  function mixDarken(hex, t) {
+    const m = /^#?([0-9a-f]{6})$/i.exec(hex || "");
+    if (!m) return "#5b47c8";
+    const n = parseInt(m[1], 16);
+    const r = Math.round(((n >> 16) & 255) * (1 - t));
+    const g = Math.round(((n >> 8) & 255) * (1 - t));
+    const b = Math.round((n & 255) * (1 - t));
+    return "rgb(" + r + "," + g + "," + b + ")";
   }
   function hexToRgba(hex, a) {
     const m = /^#?([0-9a-f]{6})$/i.exec(hex || "");

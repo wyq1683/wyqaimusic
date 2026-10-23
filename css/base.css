@@ -35,6 +35,8 @@ button { cursor: pointer; }
 a { color: inherit; text-decoration: none; }
 ul, ol { list-style: none; }
 svg { display: block; flex-shrink: 0; }
+/* UA 的 [hidden] 规则只管 HTML 命名空间，SVG 图标必须显式补一条，否则 play/pause 两组图标会重叠 */
+svg[hidden] { display: none; }
 ::selection { background: var(--accent-glow); color: #fff; }
 
 /* ============ 背景：极光光斑 ============ */
@@ -204,4 +206,24 @@ body[data-theme="light"] .bg-veil {
   );
   background-size: 200% 100%;
   animation: shimmer 1.4s linear infinite;
+}
+
+/* ============ 键盘焦点可见性 ============ */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+button:focus:not(:focus-visible),
+a:focus:not(:focus-visible) { outline: none; }
+
+/* 进度条滑块：input 是透明覆盖层，用 knob 放大 + 轨道光环指示焦点 */
+.pb-seek:focus-within .pb-seek-knob { transform: translateX(-50%) scale(1.35); }
+.pb-seek:focus-within::before { box-shadow: 0 0 0 2px var(--accent); }
+
+/* ============ 降低动效偏好：连直接写死的 @keyframes 一起停 ============ */
+@media (prefers-reduced-motion: reduce) {
+  .aurora { animation: none !important; }
+  .grad-text { animation: none !important; }
+  .stagger > * { animation: none !important; }
+  .view { scroll-behavior: auto !important; }
 }

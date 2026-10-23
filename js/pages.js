@@ -925,6 +925,19 @@
       '<span class="pf-tag">' + (npSong.external ? (npSong.id.indexOf("ne_") === 0 ? "网易云音乐" : npSong.id.indexOf("qq_") === 0 ? "QQ音乐" : "Audius") : "本地曲库") + "</span>" +
       '<span class="pf-tag">' + (npSong.durStr || "") + "</span>" +
       "</div></div>" +
+      '<div class="np-controls">' +
+      '<button class="icon-btn" id="npPrev" type="button" aria-label="上一首" title="上一首"><svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg></button>' +
+      '<button class="play-btn" id="npPlay" type="button" aria-label="播放或暂停" title="播放/暂停">' +
+      '<svg class="ic-play" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>' +
+      '<svg class="ic-pause" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" hidden><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>' +
+      "</button>" +
+      '<button class="icon-btn" id="npNext" type="button" aria-label="下一首" title="下一首"><svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6h2v12h-2z"/></svg></button>' +
+      "</div>" +
+      '<div class="np-progress">' +
+      '<span class="pb-time" id="npTimeCur">0:00</span>' +
+      '<div class="pb-seek"><div class="pb-seek-fill" id="npSeekFill"></div><div class="pb-seek-knob" id="npSeekKnob"></div><input type="range" id="npSeek" min="0" max="1000" value="0" aria-label="播放进度" /></div>' +
+      '<span class="pb-time" id="npTimeDur">0:00</span>' +
+      "</div>" +
       '<div class="ph-actions" style="justify-content:center">' +
       '<button class="icon-btn" id="npFav" aria-label="收藏" aria-pressed="' + C.isFavorite(npSong.id) + '">' + C.icon(C.isFavorite(npSong.id) ? "heart-fill" : "heart", 19) + "</button>" +
       '<button class="icon-btn" id="npAddPl" aria-label="添加到歌单">' + C.icon("playlist", 19) + "</button>" +
@@ -988,6 +1001,41 @@
     );
     renderLyric();
 
+    // ---- 播放控制（正在播放页自持控制，底栏在 data-np 下被隐藏）----
+    let npSeeking = false;
+    const npSeek = $("#npSeek", el);
+    $("#npPlay", el).addEventListener("click", () => P().toggle());
+    $("#npPrev", el).addEventListener("click", () => P().prev());
+    $("#npNext", el).addEventListener("click", () => P().next(false));
+    npSeek.addEventListener("pointerdown", () => { npSeeking = true; });
+    npSeek.addEventListener("input", () => {
+      const r = npSeek.value / 1000;
+      $("#npSeekFill", el).style.width = r * 100 + "%";
+      $("#npSeekKnob", el).style.left = r * 100 + "%";
+    });
+    const npSeekCommit = () => { npSeeking = false; P().seekTo(npSeek.value / 1000); };
+    npSeek.addEventListener("change", npSeekCommit);
+    npSeek.addEventListener("pointerup", npSeekCommit);
+    const onNpState = (playing) => {
+      const b = $("#npPlay", el);
+      b.querySelector(".ic-play").hidden = playing;
+      b.querySelector(".ic-pause").hidden = !playing;
+      b.classList.toggle("playing", playing);
+      b.setAttribute("aria-label", playing ? "暂停" : "播放");
+    };
+    const onNpTime = (t) => {
+      if (npSeeking) return;
+      const r = t.dur ? t.cur / t.dur : 0;
+      $("#npSeekFill", el).style.width = r * 100 + "%";
+      $("#npSeekKnob", el).style.left = r * 100 + "%";
+      npSeek.value = Math.round(r * 1000);
+      $("#npTimeCur", el).textContent = C.fmtDur(t.cur);
+      $("#npTimeDur", el).textContent = C.fmtDur(t.dur);
+    };
+    bus.on("player:state", onNpState);
+    bus.on("player:time", onNpTime);
+    onNpState(P().state.playing); // 立即同步当前状态
+
     // 歌词行高亮
     const onLyricLine = (idx) => {
       $$("#npLyricPane .lyric-line", el).forEach((l, i) => {
@@ -1034,6 +1082,8 @@
       if (!document.body.contains(el)) {
         bus.off("player:lyricline", onLyricLine);
         bus.off("player:changed", onSongChanged);
+        bus.off("player:state", onNpState);
+        bus.off("player:time", onNpTime);
         obs.disconnect();
       }
     });
@@ -1102,6 +1152,15 @@
       '<div class="set-row"><div class="set-info"><div class="set-name">触感反馈</div><div class="set-desc">支持震动的设备上播放操作时轻震</div></div>' +
       '<div class="set-ctrl"><button class="switch' + (s.haptics ? " on" : "") + '" id="stHaptic" role="switch" aria-checked="' + s.haptics + '" aria-label="触感反馈"></button></div></div>' +
       "</div></div>" +
+
+      '<div class="set-section"><div class="sec-head"><div class="sec-title">键盘快捷键</div></div><div class="set-card">' +
+      '<div class="kbd-list">' +
+      '<div class="kbd-row"><span><kbd>Space</kbd></span><span>播放 / 暂停</span></div>' +
+      '<div class="kbd-row"><span><kbd>Alt</kbd> + <kbd>←</kbd></span><span>上一首</span></div>' +
+      '<div class="kbd-row"><span><kbd>Alt</kbd> + <kbd>→</kbd></span><span>下一首</span></div>' +
+      '<div class="kbd-row"><span><kbd>Ctrl</kbd> + <kbd>K</kbd></span><span>命令面板</span></div>' +
+      '<div class="kbd-row"><span><kbd>Esc</kbd></span><span>关闭浮层</span></div>' +
+      "</div></div></div>" +
 
       '<div class="set-section"><div class="sec-head"><div class="sec-title">账户</div></div><div class="set-card">' +
       (C.isLoggedIn()

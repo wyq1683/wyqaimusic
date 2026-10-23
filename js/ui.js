@@ -738,6 +738,7 @@
 
   /* ==================== 抽屉（队列/歌词） ==================== */
   let drawerTab = "queue";
+  let drawerPrevFocus = null;
 
   function toggleDrawer(tab) {
     const drawer = $("#drawer");
@@ -745,16 +746,43 @@
     const willOpen = drawer.hidden || !drawer.classList.contains("open");
     drawer.hidden = false;
     if (willOpen) {
+      drawerPrevFocus = document.activeElement;
       drawer.classList.add("open");
       renderDrawer();
       $("#btnQueue").setAttribute("aria-pressed", true);
       $("#btnLyric").setAttribute("aria-pressed", true);
+      setTimeout(() => {
+        const f = focusables(drawer)[0];
+        if (f) f.focus();
+      }, 60);
+      drawer.addEventListener("keydown", drawerTrap);
     } else {
       drawer.classList.remove("open");
+      drawer.removeEventListener("keydown", drawerTrap);
       $("#btnQueue").setAttribute("aria-pressed", false);
       $("#btnLyric").setAttribute("aria-pressed", false);
       setTimeout(() => { if (!drawer.classList.contains("open")) drawer.hidden = true; }, 400);
+      if (drawerPrevFocus && drawerPrevFocus.isConnected) drawerPrevFocus.focus();
+      drawerPrevFocus = null;
     }
+  }
+
+  // 可聚焦元素列表（排除 SVG <use href> 这类 tabIndex=-1 的伪焦点项）
+  function focusables(root) {
+    return $$("button, [href], input, select, textarea, [tabindex]", root)
+      .filter((el) => el.tabIndex >= 0 && !el.disabled && el.offsetParent !== null);
+  }
+
+  // 抽屉内 Tab 循环，避免焦点跑到背后页面
+  function drawerTrap(e) {
+    if (e.key !== "Tab") return;
+    const drawer = $("#drawer");
+    const items = focusables(drawer);
+    if (!items.length) return;
+    const first = items[0];
+    const last = items[items.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   }
 
   function renderDrawer() {
@@ -871,7 +899,8 @@
       if (n.group) { html += '<div class="nav-group nav-label">' + esc(n.group) + "</div>"; return; }
       const active = activeRoute === n.route;
       html +=
-        '<a class="nav-item' + (active ? " active" : "") + '" href="#' + n.route + '" data-route="' + n.route + '">' +
+        '<a class="nav-item' + (active ? " active" : "") + '" href="#' + n.route + '" data-route="' + n.route + '"' +
+        (active ? ' aria-current="page"' : "") + ">" +
         C.icon(n.icon, 17) + "<span class='nav-label'>" + esc(n.label) + "</span>" +
         (n.badge ? '<span class="nav-badge" id="navBadgeSocial" hidden>0</span>' : "") +
         "</a>";
@@ -881,7 +910,8 @@
     const tabbar = $("#tabbar");
     tabbar.innerHTML = TABS.map(
       (t) =>
-        '<a class="tab-item' + (activeRoute === t.route ? " active" : "") + '" href="#' + t.route + '">' +
+        '<a class="tab-item' + (activeRoute === t.route ? " active" : "") + '" href="#' + t.route + '"' +
+        (activeRoute === t.route ? ' aria-current="page"' : "") + ">" +
         C.icon(t.icon, 19) + "<span>" + esc(t.label) + "</span>" +
         (t.badge ? '<span class="nav-badge" id="tabBadgeSocial" hidden style="position:absolute;top:4px;right:calc(50% - 22px)">0</span>' : "") +
         "</a>"
@@ -947,9 +977,19 @@
 
   /* ==================== 全局事件 ==================== */
   function wireGlobal() {
-    // 侧栏折叠
+    // 侧栏折叠（折叠态持久化）
+    const syncSbLabel = () => {
+      const mini = document.body.classList.contains("sb-mini");
+      const label = mini ? "展开导航" : "折叠导航";
+      $("#sbCollapse").setAttribute("aria-label", label);
+      $("#sbCollapse").setAttribute("title", label);
+    };
+    syncSbLabel();
     $("#sbCollapse").addEventListener("click", () => {
-      document.body.classList.toggle("sb-mini");
+      const on = !document.body.classList.contains("sb-mini");
+      document.body.classList.toggle("sb-mini", on);
+      C.saveSettings({ sidebarMini: on });
+      syncSbLabel();
     });
     // 移动端菜单
     $("#navToggle").addEventListener("click", () => {
@@ -961,10 +1001,17 @@
         document.body.classList.remove("sb-open");
       }
     });
+    // 主题图标随设置同步（顶栏按钮 / 设置页按钮 / 首屏恢复都走这里）
+    const syncThemeIcon = () => {
+      const dark = C.getSettings().theme === "dark";
+      $("#themeBtn").innerHTML = C.icon(dark ? "moon" : "sun", 17);
+      $("#themeBtn").setAttribute("aria-label", dark ? "切换浅色主题" : "切换深色主题");
+    };
+    syncThemeIcon();
+    bus.on("settings:changed", syncThemeIcon);
     // 主题切换
     $("#themeBtn").addEventListener("click", () => {
-      const s = C.getSettings();
-      const next = s.theme === "dark" ? "light" : "dark";
+      const next = C.getSettings().theme === "dark" ? "light" : "dark";
       C.saveSettings({ theme: next });
       toast(next === "dark" ? "已切换深色主题" : "已切换浅色主题");
     });
@@ -995,9 +1042,17 @@
         e.preventDefault();
         openPalette();
       }
-      if (e.key === "Escape") { closeMenu(); closePalette(); }
+      if (e.key === "Escape") {
+        closeMenu();
+        closePalette();
+        closeModal();
+        const dw = $("#drawer");
+        if (dw && !dw.hidden) toggleDrawer();
+      }
       const tag = (e.target.tagName || "").toLowerCase();
-      if (tag === "input" || tag === "textarea") return;
+      if (tag === "input" || tag === "textarea" || tag === "select" || e.target.isContentEditable) return;
+      // 焦点在可激活元素上时，Space 交给元素自身（原生激活），不做全局播放/暂停
+      if (e.target.closest && e.target.closest("button, a, [role='button'], [role='tab'], [role='menuitem']")) return;
       if (e.code === "Space") {
         e.preventDefault();
         global.App.Player.toggle();

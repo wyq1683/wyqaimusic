@@ -77,8 +77,12 @@
     const routeInfo = m || { route: { pattern: "*", title: "页面不存在" }, params: {} };
     current = { route: routeInfo.route.pattern, params: routeInfo.params, query };
 
-    // 顶栏
-    $("#topbarTitle").textContent = routeInfo.route.title;
+    // 顶栏标题：先停动画并强制回流，否则直接换 textContent 不会重播动画
+    const titleEl = $("#topbarTitle");
+    titleEl.style.animation = "none";
+    void titleEl.offsetWidth;
+    titleEl.textContent = routeInfo.route.title;
+    titleEl.style.animation = "";
     $("#topbarBack").hidden = !routeInfo.route.back;
     document.body.dataset.np = routeInfo.route.full ? "1" : "0";
     document.body.dataset.route = routeInfo.route.pattern;

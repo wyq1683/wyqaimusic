@@ -1,0 +1,207 @@
+/* ============================================================
+ * base.css — 重置 / 背景极光 / 滚动条 / 工具类 / 关键帧
+ * ============================================================ */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 15px;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: var(--font);
+  background: var(--bg-0);
+  color: var(--text-1);
+  min-height: 100vh;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  transition: background var(--dur-3) var(--ease-out), color var(--dur-3) var(--ease-out);
+}
+
+button, input, textarea, select {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  outline: none;
+}
+button { cursor: pointer; }
+a { color: inherit; text-decoration: none; }
+ul, ol { list-style: none; }
+svg { display: block; flex-shrink: 0; }
+::selection { background: var(--accent-glow); color: #fff; }
+
+/* ============ 背景：极光光斑 ============ */
+.bg-aurora {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.aurora {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(90px);
+  opacity: 0.5;
+  will-change: transform;
+}
+.aurora.a1 {
+  width: 46vw; height: 46vw;
+  top: -12%; left: -8%;
+  background: radial-gradient(circle, var(--accent) 0%, transparent 68%);
+  animation: aurora-drift-1 26s var(--ease-in-out) infinite alternate;
+}
+.aurora.a2 {
+  width: 38vw; height: 38vw;
+  top: 30%; right: -10%;
+  background: radial-gradient(circle, #ff5c9d 0%, transparent 66%);
+  opacity: 0.32;
+  animation: aurora-drift-2 32s var(--ease-in-out) infinite alternate;
+}
+.aurora.a3 {
+  width: 42vw; height: 42vw;
+  bottom: -16%; left: 28%;
+  background: radial-gradient(circle, #38bdf8 0%, transparent 68%);
+  opacity: 0.26;
+  animation: aurora-drift-3 38s var(--ease-in-out) infinite alternate;
+}
+body[data-theme="light"] .aurora { opacity: 0.22; }
+
+@keyframes aurora-drift-1 {
+  to { transform: translate(9vw, 7vh) scale(1.14); }
+}
+@keyframes aurora-drift-2 {
+  to { transform: translate(-8vw, 10vh) scale(0.9); }
+}
+@keyframes aurora-drift-3 {
+  to { transform: translate(6vw, -9vh) scale(1.1); }
+}
+
+/* ============ 背景：星光粒子画布 ============ */
+.bg-stars {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.7;
+}
+body[data-theme="light"] .bg-stars { opacity: 0.25; }
+
+/* 背景压暗 veil（提升可读性，随设置调节） */
+.bg-veil {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(5,6,12,0.18), rgba(5,6,12,0.52));
+}
+body[data-theme="light"] .bg-veil {
+  background: linear-gradient(180deg, rgba(238,240,247,0.3), rgba(238,240,247,0.62));
+}
+
+/* ============ 滚动条 ============ */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb {
+  background: rgba(140, 148, 175, 0.32);
+  border-radius: var(--r-full);
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(140, 148, 175, 0.5); }
+::-webkit-scrollbar-track { background: transparent; }
+* { scrollbar-width: thin; scrollbar-color: rgba(140,148,175,0.32) transparent; }
+
+/* ============ 工具类 ============ */
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  overflow: hidden;
+  white-space: nowrap;
+}
+.ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.grow { flex: 1; min-width: 0; }
+.hstack { display: flex; align-items: center; }
+
+/* ============ 全局关键帧 ============ */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes pop-in {
+  0% { opacity: 0; transform: scale(0.9); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes slide-left {
+  from { opacity: 0; transform: translateX(18px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes shimmer {
+  from { background-position: -200% 0; }
+  to { background-position: 200% 0; }
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes heart-burst {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.45); }
+  100% { transform: scale(1); }
+}
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 var(--accent-glow); }
+  100% { box-shadow: 0 0 0 14px transparent; }
+}
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(16px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes toast-out {
+  to { opacity: 0; transform: translateY(-8px) scale(0.96); }
+}
+@keyframes eq-bounce {
+  0%, 100% { transform: scaleY(0.35); }
+  50% { transform: scaleY(1); }
+}
+
+/* 正在播放的跳动音符 */
+.eq-bars {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 12px;
+}
+.eq-bars i {
+  width: 2.5px;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent);
+  transform-origin: bottom;
+  animation: eq-bounce 0.9s var(--ease-in-out) infinite;
+}
+.eq-bars i:nth-child(2) { animation-delay: 0.18s; }
+.eq-bars i:nth-child(3) { animation-delay: 0.36s; }
+.eq-bars i:nth-child(4) { animation-delay: 0.54s; }
+
+/* ============ 骨架屏 ============ */
+.skeleton {
+  border-radius: var(--r-sm);
+  background: linear-gradient(
+    100deg,
+    var(--glass-card) 40%,
+    var(--glass-card-hover) 50%,
+    var(--glass-card) 60%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}

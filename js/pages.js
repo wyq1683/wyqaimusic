@@ -1,0 +1,1234 @@
+/* ============================================================
+ * pages.js — 页面视图集合
+ * 发现 / 曲库 / 搜索 / 收藏 / 歌单 / 历史 / 社交 / 我的
+ * 正在播放 / 艺人 / 专辑 / 设置
+ * ============================================================ */
+(function (global) {
+  "use strict";
+
+  const C = global.App.Core;
+  const D = global.App.DATA;
+  const R = global.App.Recommend;
+  const bus = C.bus;
+  const { $, $$ } = C;
+
+  const UI = () => global.App.UI;
+  const P = () => global.App.Player;
+
+  function page(html) {
+    const d = C.el("div", "page");
+    d.innerHTML = html;
+    return d;
+  }
+
+  /* ==================== 发现 ==================== */
+  function home() {
+    const hour = new Date().getHours();
+    const greet = hour < 5 ? "夜深了" : hour < 9 ? "早上好" : hour < 12 ? "上午好" : hour < 14 ? "中午好" : hour < 18 ? "下午好" : "晚上好";
+    const sec = R.homeSections();
+    const name = C.isLoggedIn() ? C.currentUser() : "朋友";
+
+    let html =
+      '<div class="hero">' +
+      '<div><div class="hero-greet">' + greet + "，<span class='grad-text'>" + C.esc(name) + "</span></div>" +
+      '<div class="hero-sub">来点旋律，为这一刻上色。</div></div>' +
+      '<button class="btn btn-ghost" id="homeShuffle">' + C.icon("shuffle", 15) + "随便听听</button></div>";
+
+    // 音源入口
+    html +=
+      '<div class="hero-cards">' +
+      srcCard("t", "trend", "网易云热歌", "华语流行 · 每日更新", "#/search?src=netease") +
+      srcCard("#00c1ff", "music", "QQ 音乐", "海量曲库 · 即点即播", "#/search?src=qq") +
+      srcCard("#c47cff", "disc", "Audius", "全球独立音乐人", "#/search?src=audius") +
+      srcCard("var(--accent)", "library", "本地曲库", "36 首精选示例曲目", "#/library") +
+      "</div>";
+
+    // 心情 chips
+    html += '<div class="sec"><div class="sec-head"><div class="sec-title">心情电台</div><div class="sec-sub">点一下，播一整张歌单</div></div><div class="chip-row">';
+    D.MOODS.forEach((m) => {
+      html += '<button class="chip" data-mood="' + m + '">' + moodEmoji(m) + " " + (D.MOOD_LABEL[m] || m) + "</button>";
+    });
+    html += "</div></div>";
+
+    // 推荐区
+    html += '<div class="sec">' + UI().sectionHead("为你推荐", sec.personalized.length ? "" : "", "/library", "去曲库") + '<div class="hscroll">' + sec.personalized.map(UI().songCard).join("") + "</div></div>";
+    html += '<div class="sec">' + UI().sectionHead("热门趋势", "", "/library") + '<div class="hscroll">' + sec.trending.map(UI().songCard).join("") + "</div></div>";
+
+    if (C.isLoggedIn() && sec.recent.length) {
+      html += '<div class="sec">' + UI().sectionHead("最近在听", "", "/history", "更多") + '<div class="hscroll">' + sec.recent.map(UI().songCard).join("") + "</div></div>";
+    }
+    if (C.isLoggedIn() && sec.fromFavorites.length) {
+      html += '<div class="sec">' + UI().sectionHead("根据收藏猜你喜欢", "", "/favorites") + '<div class="hscroll">' + sec.fromFavorites.map(UI().songCard).join("") + "</div></div>";
+    }
+    html += '<div class="sec">' + UI().sectionHead("新歌速递", "", "/library") + '<div class="hscroll">' + sec.newReleases.map(UI().songCard).join("") + "</div></div>";
+
+    const el = page(html);
+    // 随便听听
+    $("#homeShuffle", el).addEventListener("click", () => {
+      const pool = R.trending(36);
+      P().playList(pool.map((s) => s.id), Math.floor(Math.random() * pool.length));
+      toast("开始随便听");
+    });
+    // 心情电台
+    $$("[data-mood]", el).forEach((b) =>
+      b.addEventListener("click", () => {
+        const mood = b.dataset.mood;
+        const songs = R.fromMood(mood, 20);
+        if (songs.length) {
+          P().playList(songs.map((s) => s.id), 0);
+          toast("正在播放：" + (D.MOOD_LABEL[mood] || mood) + "电台");
+        }
+      })
+    );
+    return el;
+  }
+
+  function srcCard(color, ic, name, desc, href) {
+    return (
+      '<a class="src-card" href="' + href + '">' +
+      '<span class="src-ic" style="background:' + color + '">' + C.icon(ic, 20) + "</span>" +
+      '<span><span class="src-name">' + C.esc(name) + "</span><br/><span class='src-desc'>" + C.esc(desc) + "</span></span></a>"
+    );
+  }
+  function moodEmoji(m) {
+    return { Happy: "😄", Relax: "🌙", Energetic: "⚡", Sad: "🌧", Focus: "🎯", Party: "🎉" }[m] || "🎵";
+  }
+
+  /* ==================== 曲库 ==================== */
+  const libState = { genre: "", mood: "", sort: "hot", view: "list" };
+
+  function library() {
+    let html =
+      '<div class="lib-head">' +
+      '<div><div class="lib-title">曲库</div><div class="lib-count" id="libCount"></div></div>' +
+      '<div class="lib-tools">' +
+      '<button class="btn btn-primary" id="libPlayAll" style="height:32px">' + C.icon("play", 14) + " 全部播放</button>" +
+      '<div class="seg" id="libViewSeg">' +
+      '<button data-view="list" class="' + (libState.view === "list" ? "active" : "") + '" aria-label="列表视图">' + C.icon("list", 14) + "</button>" +
+      '<button data-view="grid" class="' + (libState.view === "grid" ? "active" : "") + '" aria-label="网格视图">' + C.icon("grid", 14) + "</button>" +
+      "</div></div></div>";
+
+    html += '<div class="chip-row" style="margin-bottom:18px">';
+    html += '<button class="chip' + (libState.genre === "" ? " active" : "") + '" data-genre="">全部流派</button>';
+    D.GENRES.forEach((g) => {
+      html += '<button class="chip' + (libState.genre === g ? " active" : "") + '" data-genre="' + g + '">' + g + "</button>";
+    });
+    html += "</div>";
+    html += '<div class="chip-row" style="margin-bottom:18px">';
+    html += '<button class="chip' + (libState.mood === "" ? " active" : "") + '" data-mood="">全部心情</button>';
+    D.MOODS.forEach((m) => {
+      html += '<button class="chip' + (libState.mood === m ? " active" : "") + '" data-mood="' + m + '">' + moodEmoji(m) + " " + (D.MOOD_LABEL[m] || m) + "</button>";
+    });
+    html += "</div>";
+
+    html += '<div id="libBody"></div>';
+    const el = page(html);
+
+    function filtered() {
+      let songs = D.SONGS.slice();
+      if (libState.genre) songs = songs.filter((s) => s.genre === libState.genre);
+      if (libState.mood) songs = songs.filter((s) => s.mood === libState.mood);
+      if (libState.sort === "hot") {
+        const plays = C.getPlays();
+        songs.sort((a, b) => (plays[b.id] || 0) - (plays[a.id] || 0));
+      } else if (libState.sort === "new") songs.sort((a, b) => b.year - a.year);
+      else if (libState.sort === "dur") songs.sort((a, b) => b.dur - a.dur);
+      return songs;
+    }
+
+    function renderBody() {
+      const songs = filtered();
+      $("#libCount", el).textContent = songs.length + " 首 · 按" + ({ hot: "热度", new: "年份", dur: "时长" }[libState.sort]) + "排序";
+      const body = $("#libBody", el);
+      body.innerHTML = songs.length
+        ? libState.view === "list"
+          ? UI().songListHTML(songs)
+          : UI().cardGridHTML(songs)
+        : UI().emptyState("search", "没有符合条件的歌曲", "换个筛选条件试试");
+    }
+    renderBody();
+
+    $$("[data-genre]", el).forEach((b) => b.addEventListener("click", () => { libState.genre = b.dataset.genre; global.App.Router.refresh(); }));
+    $$("[data-mood]", el).forEach((b) => b.addEventListener("click", () => { libState.mood = b.dataset.mood; global.App.Router.refresh(); }));
+    $$("#libViewSeg button", el).forEach((b) =>
+      b.addEventListener("click", () => { libState.view = b.dataset.view; global.App.Router.refresh(); })
+    );
+    $("#libPlayAll", el).addEventListener("click", () => {
+      const songs = filtered();
+      if (songs.length) { P().playList(songs.map((s) => s.id), 0); toast("开始播放 " + songs.length + " 首"); }
+    });
+    return el;
+  }
+
+  /* ==================== 搜索 ==================== */
+  const searchState = { q: "", src: "all", results: [], loading: false, searched: false };
+
+  const SOURCES = [
+    { key: "all", label: "综合" },
+    { key: "netease", label: "网易云音乐" },
+    { key: "qq", label: "QQ 音乐" },
+    { key: "audius", label: "Audius" },
+  ];
+  const HOT_WORDS = ["周杰伦", "邓紫棋", "陈奕迅", "林俊杰", "电子音乐", "Lo-Fi", "钢琴", "夏日"];
+
+  function search(params, query) {
+    if (query.src && SOURCES.some((s) => s.key === query.src)) searchState.src = query.src;
+    if (query.q) searchState.q = query.q;
+
+    let html =
+      '<div class="search-head">' +
+      '<div class="search-box">' + C.icon("search", 17) +
+      '<input id="searchInput" placeholder="搜索歌曲、艺人、专辑…" value="' + C.esc(searchState.q) + '" autocomplete="off" />' +
+      (searchState.q ? '<button class="clear-btn" id="searchClear" aria-label="清空">' + C.icon("close", 14) + "</button>" : "") +
+      "</div>" +
+      '<div class="src-tabs">';
+    SOURCES.forEach((s) => {
+      html += '<button class="chip' + (searchState.src === s.key ? " active" : "") + '" data-src="' + s.key + '">' + s.label + "</button>";
+    });
+    html += "</div></div>";
+    html += '<div id="searchBody"></div>';
+
+    const el = page(html);
+    const input = $("#searchInput", el);
+    if (query.q) setTimeout(() => doSearch(query.q), 60);
+
+    function renderBody() {
+      const body = $("#searchBody", el);
+      if (searchState.loading) {
+        body.innerHTML = '<div class="loading-box"><span class="spinner"></span>正在搜索…</div>';
+        return;
+      }
+      if (!searchState.searched) {
+        // 未搜索：历史 + 热词
+        const hist = C.getSearchHistory();
+        let h = "";
+        if (hist.length) {
+          h += '<div class="sec"><div class="sec-head"><div class="sec-title">搜索历史</div><button class="sec-more" id="clearHist">清空</button></div><div class="hot-words">';
+          hist.forEach((w) => (h += '<button class="chip" data-word="' + C.esc(w) + '">' + C.esc(w) + "</button>"));
+          h += "</div></div>";
+        }
+        h += '<div class="sec"><div class="sec-head"><div class="sec-title">热门搜索</div></div><div class="hot-words">';
+        HOT_WORDS.forEach((w) => (h += '<button class="chip" data-word="' + C.esc(w) + '">' + C.esc(w) + "</button>"));
+        h += "</div></div>";
+        body.innerHTML = h;
+        $$("[data-word]", el).forEach((b) => b.addEventListener("click", () => { input.value = b.dataset.word; doSearch(b.dataset.word); }));
+        const cl = $("#clearHist", el);
+        if (cl) cl.addEventListener("click", () => { C.clearSearchHistory(); renderBody(); });
+        return;
+      }
+      if (!searchState.results.length) {
+        body.innerHTML = UI().emptyState("search", "没有找到相关歌曲", "换个关键词，或切换音源试试");
+        return;
+      }
+      body.innerHTML = UI().songListHTML(searchState.results);
+    }
+
+    async function doSearch(q) {
+      q = (q || "").trim();
+      searchState.q = q;
+      if (!q) { searchState.searched = false; searchState.results = []; renderBody(); return; }
+      searchState.loading = true;
+      searchState.searched = true;
+      renderBody();
+      C.addSearchHistory(q);
+      try {
+        if (searchState.src === "all") {
+          const k = q.toLowerCase();
+          searchState.results = D.SONGS.filter((s) => (s.title + s.artist + s.album + s.genre).toLowerCase().includes(k));
+        } else if (searchState.src === "netease") {
+          const r = await C.apiGet("netease.php", { action: "search", keywords: q, limit: 30 });
+          searchState.results = r.ok && r.data ? r.data.map((s) => D.registerExternal(s)) : [];
+          if (!r.ok) UI().toast(r.error || "网易云搜索失败", "error");
+        } else if (searchState.src === "qq") {
+          const r = await C.apiGet("qq.php", { action: "search", keywords: q, limit: 30 });
+          searchState.results = r.ok && r.data ? r.data.map((s) => D.registerExternal(s)) : [];
+          if (!r.ok) UI().toast(r.error || "QQ 音乐搜索失败", "error");
+        } else {
+          const r = await C.apiGet("audius.php", { action: "search", q: q, limit: 30 });
+          searchState.results = r.ok && r.data ? r.data.map((s) => D.registerExternal(s)) : [];
+          if (!r.ok) UI().toast(r.error || "Audius 搜索失败", "error");
+        }
+      } catch (e) {
+        searchState.results = [];
+        UI().toast("搜索出错，请稍后重试", "error");
+      }
+      searchState.loading = false;
+      renderBody();
+    }
+
+    const debouncedSearch = C.debounce(() => doSearch(input.value), 450);
+    input.addEventListener("input", debouncedSearch);
+    input.addEventListener("keydown", (e) => { if (e.key === "Enter") doSearch(input.value); });
+    const cl = $("#searchClear", el);
+    if (cl) cl.addEventListener("click", () => { input.value = ""; doSearch(""); input.focus(); });
+    $$("[data-src]", el).forEach((b) =>
+      b.addEventListener("click", () => {
+        searchState.src = b.dataset.src;
+        $$("[data-src]", el).forEach((x) => x.classList.toggle("active", x === b));
+        if (searchState.q) doSearch(searchState.q);
+        else renderBody();
+      })
+    );
+    renderBody();
+    setTimeout(() => input.focus(), 100);
+    return el;
+  }
+
+  /* ==================== 收藏夹 ==================== */
+  function favorites() {
+    const favIds = C.getFavorites();
+    const songs = favIds.map((id) => D.get(id)).filter(Boolean);
+    let html =
+      '<div class="page-head">' +
+      '<div class="ph-cover" style="background:linear-gradient(150deg,#ff5c6c,#7c5cff)">' + C.icon("heart-fill", 44) + "</div>" +
+      '<div class="ph-info"><div class="ph-kicker">收藏夹</div>' +
+      '<div class="ph-title">我喜欢的音乐</div>' +
+      '<div class="ph-meta"><span>' + songs.length + " 首</span>" + (C.isLoggedIn() ? "<span>@" + C.esc(C.currentUser()) + "</span>" : "") + "</div>" +
+      '<div class="ph-actions">' +
+      '<button class="btn btn-primary" id="favPlayAll">' + C.icon("play", 14) + " 播放全部</button>" +
+      '<button class="btn btn-ghost" id="favShuffle">' + C.icon("shuffle", 14) + " 随机</button>" +
+      "</div></div></div>";
+    html += songs.length ? UI().songListHTML(songs) : UI().emptyState("heart", "收藏夹是空的", "听到喜欢的歌，点一下爱心就能收进来", '<a class="btn btn-primary" href="#/library">去曲库逛逛</a>');
+    const el = page(html);
+    const pa = $("#favPlayAll", el);
+    if (pa) pa.addEventListener("click", () => P().playList(songs.map((s) => s.id), 0));
+    const sh = $("#favShuffle", el);
+    if (sh) sh.addEventListener("click", () => P().playList(songs.map((s) => s.id), Math.floor(Math.random() * songs.length)));
+    return el;
+  }
+
+  /* ==================== 播放列表 ==================== */
+  function playlists() {
+    const pls = C.getPlaylists();
+    let html = '<div class="lib-head"><div><div class="lib-title">播放列表</div><div class="lib-count">' + pls.length + " 个歌单</div></div>";
+    if (C.isLoggedIn()) {
+      html += '<div class="lib-tools"><button class="btn btn-primary" id="plNew" style="height:32px">' + C.icon("plus", 14) + " 新建歌单</button>" +
+        '<button class="btn btn-ghost" id="plImport" style="height:32px">' + C.icon("download", 14) + " 导入歌单</button></div>";
+    }
+    html += "</div>";
+    if (!pls.length) {
+      html += UI().emptyState(
+        "playlist",
+        C.isLoggedIn() ? "还没有创建歌单" : "登录后即可创建歌单",
+        "歌单可以跨设备同步，也可以分享给好友",
+        C.isLoggedIn()
+          ? '<button class="btn btn-primary" id="plNew2">创建第一个歌单</button>'
+          : '<button class="btn btn-primary" id="plLogin">去登录</button>'
+      );
+    } else {
+      html += '<div class="pl-grid stagger">';
+      pls.forEach((p) => {
+        html +=
+          '<a class="pl-card" href="#/playlist/' + C.esc(p.id) + '">' +
+          UI().coverHTML({ c: gradientFrom(p.name), emoji: "🎵" }) +
+          '<div class="card-title ellipsis" style="margin-top:9px">' + C.esc(p.name) + "</div>" +
+          '<div class="card-sub">' + p.songIds.length + " 首</div></a>";
+      });
+      html += "</div>";
+    }
+    const el = page(html);
+    const nb = $("#plNew", el) || $("#plNew2", el);
+    if (nb) nb.addEventListener("click", createPlaylistFlow);
+    const ib = $("#plImport", el);
+    if (ib) ib.addEventListener("click", importPlaylistFlow);
+    const lb = $("#plLogin", el);
+    if (lb) lb.addEventListener("click", () => UI().openAuthModal("login"));
+    return el;
+  }
+
+  function gradientFrom(name) {
+    // 由歌单名生成稳定渐变
+    let h = 0;
+    for (let i = 0; i < name.length; i++) h = (Math.imul(31, h) + name.charCodeAt(i)) | 0;
+    const a = Math.abs(h) % 360;
+    return { from: "hsl(" + a + ",70%,58%)", to: "hsl(" + ((a + 50) % 360) + ",66%,42%)" };
+  }
+
+  function createPlaylistFlow() {
+    if (!C.isLoggedIn()) { UI().toast("请先登录", "error"); UI().openAuthModal("login"); return; }
+    UI().confirmDialog({ title: "新建歌单", message: "给新歌单起个名字", input: true, inputPlaceholder: "歌单名称", okText: "创建" }).then((name) => {
+      if (!name) return;
+      const pl = C.createPlaylist(name);
+      location.hash = "#/playlist/" + pl.id;
+      UI().toast("歌单已创建", "success");
+    });
+  }
+
+  /* ---- 歌单导入（网易云 + QQ 音乐） ---- */
+  function parsePlaylistUrl(url) {
+    url = String(url || "").trim();
+    if (!url) return null;
+    let m;
+    // 网易云：music.163.com/playlist?id=XXX 或 /#/playlist?id=XXX 或 /playlist/XXX/YYY/
+    m = url.match(/music\.163\.com[^\s]*[?&#]id=(\d+)/i);
+    if (m) return { source: "netease", id: m[1] };
+    m = url.match(/music\.163\.com\/playlist\/(\d+)/i);
+    if (m) return { source: "netease", id: m[1] };
+    // QQ 音乐：y.qq.com/n/ryqq/playlist/XXX
+    m = url.match(/y\.qq\.com[^\s]*playlist\/(\d+)/i);
+    if (m) return { source: "qq", id: m[1] };
+    // 纯数字 id：默认按网易云处理
+    if (/^\d+$/.test(url)) return { source: "netease", id: url };
+    return null;
+  }
+
+  async function importPlaylistFlow() {
+    if (!C.isLoggedIn()) { UI().toast("请先登录", "error"); UI().openAuthModal("login"); return; }
+    const url = await UI().confirmDialog({
+      title: "导入歌单",
+      message: "粘贴网易云或 QQ 音乐的歌单链接（需为公开歌单）",
+      input: true,
+      inputPlaceholder: "https://music.163.com/playlist?id=... 或 https://y.qq.com/n/ryqq/playlist/...",
+      okText: "导入",
+    });
+    if (!url) return;
+    const parsed = parsePlaylistUrl(url);
+    if (!parsed) { UI().toast("无法识别的歌单链接，请粘贴网易云或 QQ 音乐的歌单链接", "error"); return; }
+
+    const isQQ = parsed.source === "qq";
+    const endpoint = isQQ
+      ? "api/qq.php?action=playlist&id=" + encodeURIComponent(parsed.id)
+      : "api/netease.php?action=playlist&id=" + encodeURIComponent(parsed.id);
+
+    UI().toast("正在导入歌单...");
+    try {
+      const res = await fetch(endpoint);
+      const data = await res.json();
+      if (!data.ok || !data.data || !data.data.length) {
+        UI().toast(data.error || "歌单导入失败（可能为私密歌单）", "error");
+        return;
+      }
+      // 统一注册为外部歌曲（netease 的播放地址由 registerExternal 内部回退拼装）
+      const songIds = data.data
+        .map((t) => { const full = D.registerExternal(t); return full ? full.id : null; })
+        .filter(Boolean);
+      if (!songIds.length) { UI().toast("歌单中没有可导入的歌曲", "error"); return; }
+
+      const name = (data.name || (isQQ ? "QQ音乐歌单" : "网易云歌单")).trim() || "导入的歌单";
+      C.importPlaylist(name, songIds);
+      UI().toast("已导入 " + songIds.length + " 首歌曲到「" + name + "」✅", "success");
+      // 同 hash 赋值不会触发 hashchange：已在歌单页时软刷新，否则跳转
+      if (location.hash === "#/playlists") global.App.Router.refresh();
+      else location.hash = "#/playlists";
+    } catch (e) {
+      UI().toast("导入失败，请检查网络或链接", "error");
+    }
+  }
+
+  /* ==================== 歌单详情 ==================== */
+  function playlistDetail(params) {
+    const pl = C.getPlaylist(params.id);
+    if (!pl) {
+      return page(UI().emptyState("playlist", "歌单不存在或已删除", "", '<a class="btn btn-primary" href="#/playlists">返回歌单列表</a>'));
+    }
+    const songs = pl.songIds.map((id) => D.get(id)).filter(Boolean);
+    let html =
+      '<div class="page-head">' +
+      '<div class="ph-cover" style="background:linear-gradient(150deg,' + gradientFrom(pl.name).from + "," + gradientFrom(pl.name).to + ')">' + C.icon("playlist", 40) + "</div>" +
+      '<div class="ph-info"><div class="ph-kicker">播放列表</div>' +
+      '<div class="ph-title">' + C.esc(pl.name) + "</div>" +
+      '<div class="ph-meta"><span>' + songs.length + " 首</span></div>" +
+      '<div class="ph-actions">' +
+      '<button class="btn btn-primary" id="pdPlay">' + C.icon("play", 14) + " 播放全部</button>" +
+      '<button class="btn btn-ghost" id="pdShuffle">' + C.icon("shuffle", 14) + " 随机</button>" +
+      '<button class="btn btn-ghost" id="pdRename">' + C.icon("edit", 14) + " 重命名</button>" +
+      '<button class="btn btn-danger" id="pdDelete">' + C.icon("trash", 14) + " 删除</button>" +
+      "</div></div></div>";
+    html += songs.length ? UI().songListHTML(songs) : UI().emptyState("music", "歌单还是空的", "在歌曲菜单里选择「添加到歌单」", '<a class="btn btn-ghost" href="#/library">去曲库添加</a>');
+    const el = page(html);
+
+    $("#pdPlay", el).addEventListener("click", () => P().playList(songs.map((s) => s.id), 0));
+    $("#pdShuffle", el).addEventListener("click", () => P().playList(songs.map((s) => s.id), Math.floor(Math.random() * songs.length)));
+    $("#pdRename", el).addEventListener("click", () =>
+      UI().confirmDialog({ title: "重命名歌单", message: "输入新的歌单名称", input: true, inputValue: pl.name, okText: "保存" }).then((name) => {
+        if (!name || name === pl.name) return;
+        C.renamePlaylist(pl.id, name);
+        UI().toast("已重命名", "success");
+        global.App.Router.refresh();
+      })
+    );
+    $("#pdDelete", el).addEventListener("click", () =>
+      UI().confirmDialog({ title: "删除歌单", message: "删除后无法恢复，确定删除「" + pl.name + "」吗？", okText: "删除" }).then((ok) => {
+        if (!ok) return;
+        C.deletePlaylist(pl.id);
+        UI().toast("歌单已删除");
+        location.hash = "#/playlists";
+      })
+    );
+    // 行内菜单增加「从歌单移除」
+    $$("[data-action='song-menu']", el).forEach((b) =>
+      b.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const song = D.get(b.dataset.song);
+        UI().contextMenu(
+          [
+            { icon: "close", label: "从歌单移除", danger: true, onClick: () => {
+                C.removeFromPlaylist(pl.id, song.id);
+                UI().toast("已移除");
+                global.App.Router.refresh();
+              } },
+            { sep: true },
+            { icon: "play", label: "立即播放", onClick: () => P().playList([song.id], 0) },
+            { icon: "users", label: "分享给好友", onClick: () => UI().openShareModal(song) },
+          ],
+          e.clientX - 160,
+          e.clientY
+        );
+      })
+    );
+    return el;
+  }
+
+  /* ==================== 收听历史 ==================== */
+  function history() {
+    const data = C.isLoggedIn() ? C.getUserData() : null;
+    const items = data ? data.history.slice().sort((a, b) => (b.last || 0) - (a.last || 0)) : [];
+    const songs = items.map((h) => D.get(h.id)).filter(Boolean);
+    let html =
+      '<div class="page-head">' +
+      '<div class="ph-cover" style="background:linear-gradient(150deg,#38bdf8,#7c5cff)">' + C.icon("history", 40) + "</div>" +
+      '<div class="ph-info"><div class="ph-kicker">最近播放</div>' +
+      '<div class="ph-title">收听历史</div>' +
+      '<div class="ph-meta"><span>' + songs.length + " 条记录</span></div>" +
+      '<div class="ph-actions">' +
+      '<button class="btn btn-primary" id="hisPlay">' + C.icon("play", 14) + " 播放全部</button>" +
+      '<button class="btn btn-ghost" id="hisClear">' + C.icon("trash", 14) + " 清空历史</button>" +
+      "</div></div></div>";
+    if (!songs.length) {
+      html += UI().emptyState("history", "还没有收听记录", "播放过的歌曲会出现在这里");
+    } else {
+      html +=
+        '<div class="lib-list stagger">' +
+        songs
+          .map((s, i) => {
+            const row = UI().songRow(s, i, { index: false });
+            return row.replace('</div>$', '<span class="sr-time">' + C.fmtTime(items[i].last) + "</span></div>");
+          })
+          .join("") +
+        "</div>";
+    }
+    const el = page(html);
+    // 给每行插入时间（songRow 之后追加一列简单处理：用标题后缀）
+    const pa = $("#hisPlay", el);
+    if (pa) pa.addEventListener("click", () => P().playList(songs.map((s) => s.id), 0));
+    const cl = $("#hisClear", el);
+    if (cl) cl.addEventListener("click", () =>
+      UI().confirmDialog({ title: "清空历史", message: "确定清空全部收听历史吗？", okText: "清空" }).then((ok) => {
+        if (!ok) return;
+        const d = C.getUserData();
+        d.history = [];
+        C.saveUserData(C.currentUser(), d);
+        UI().toast("已清空");
+        global.App.Router.refresh();
+      })
+    );
+    return el;
+  }
+
+  /* ==================== 社交 ==================== */
+  const socialState = { tab: "friends", friends: [], online: [], shares: [] };
+
+  function social() {
+    let html =
+      '<div class="social-tabs">' +
+      '<button class="stab' + (socialState.tab === "friends" ? " active" : "") + '" data-stab="friends">' + C.icon("users", 15) + " 好友</button>" +
+      '<button class="stab' + (socialState.tab === "online" ? " active" : "") + '" data-stab="online">' + C.icon("trend", 15) + " 在线</button>" +
+      '<button class="stab' + (socialState.tab === "inbox" ? " active" : "") + '" data-stab="inbox">' + C.icon("inbox", 15) + " 收件箱<span class='stab-badge' id='socialBadge' hidden>0</span></button>" +
+      "</div>";
+    html += '<div id="socialBody"></div>';
+    const el = page(html);
+
+    function renderBody() {
+      const body = $("#socialBody", el);
+      if (!C.isLoggedIn()) {
+        body.innerHTML = UI().emptyState("users", "登录后解锁社交功能", "添加好友、分享歌曲、看看谁在线", '<button class="btn btn-primary" id="socialLogin">去登录</button>');
+        $("#socialLogin", body).addEventListener("click", () => UI().openAuthModal("login"));
+        return;
+      }
+      if (socialState.tab === "friends") body.innerHTML = friendsPane();
+      else if (socialState.tab === "online") body.innerHTML = onlinePane();
+      else body.innerHTML = inboxPane();
+      bindPane(body);
+    }
+
+    function friendsPane() {
+      let h =
+        '<div class="search-box" style="height:42px;margin-bottom:16px">' + C.icon("user-plus", 16) +
+        '<input id="friendSearch" placeholder="搜索用户名 / ID 添加好友" autocomplete="off" /></div>"';
+      h = h.replace('</div>"', "</div>");
+      h += '<div id="friendList"></div>';
+      return h;
+    }
+
+    function onlinePane() {
+      return '<div class="sec-head"><div class="sec-title">在线好友</div><div class="sec-sub">5 分钟内有活动</div></div><div id="onlineList"><div class="loading-box"><span class="spinner"></span>加载中…</div></div>';
+    }
+
+    function inboxPane() {
+      return '<div id="shareList"><div class="loading-box"><span class="spinner"></span>加载中…</div></div>';
+    }
+
+    function bindPane(body) {
+      $$("[data-stab]", el).forEach((b) =>
+        b.addEventListener("click", () => {
+          socialState.tab = b.dataset.stab;
+          $$("[data-stab]", el).forEach((x) => x.classList.toggle("active", x === b));
+          renderBody();
+        })
+      );
+      if (!C.isLoggedIn()) return;
+
+      if (socialState.tab === "friends") {
+        const input = $("#friendSearch", body);
+        const list = $("#friendList", body);
+        const loadFriends = async () => {
+          const r = await C.social.listFriends();
+          socialState.friends = r.ok ? r.data || [] : [];
+          renderFriends(list);
+        };
+        const renderFriends = (list) => {
+          if (!socialState.friends.length) {
+            list.innerHTML = UI().emptyState("users", "还没有好友", "在上方搜索用户名，添加第一个好友吧");
+            return;
+          }
+          list.innerHTML = '<div class="menu-list">' + socialState.friends.map((f) =>
+            '<div class="user-row">' +
+            '<span class="ur-avatar" style="background:' + C.gradientFor(f.username) + '">' + C.esc((f.nickname || f.username || "?")[0].toUpperCase()) +
+            (f.online ? '<span class="ur-online"></span>' : '<span class="ur-online off"></span>') + "</span>" +
+            '<div class="ur-main"><div class="ur-name">' + C.esc(f.nickname || f.username) + "</div>" +
+            '<div class="ur-sub">@' + C.esc(f.username) + (f.online ? " · 在线" : "") + "</div></div>" +
+            '<div class="ur-ops">' +
+            '<a class="btn btn-ghost" style="height:30px;padding:0 12px;font-size:0.76rem" href="#/user/' + f.id + '">主页</a>' +
+            '<button class="btn btn-danger" style="height:30px;padding:0 12px;font-size:0.76rem" data-rm="' + f.id + '">删除</button>' +
+            "</div></div>"
+          ).join("") + "</div>";
+          $$("[data-rm]", list).forEach((b) =>
+            b.addEventListener("click", async () => {
+              const r = await C.social.removeFriend(b.dataset.rm);
+              UI().toast(r.ok ? "已删除好友" : r.error || "操作失败", r.ok ? "success" : "error");
+              if (r.ok) loadFriends();
+            })
+          );
+        };
+        loadFriends();
+        const doSearch = C.debounce(async () => {
+          const q = input.value.trim();
+          if (!q) { renderFriends(); return; }
+          const r = await C.social.searchUsers(q);
+          if (r.ok && r.data && r.data.length) {
+            list.innerHTML = '<div style="font-size:0.76rem;color:var(--text-3);margin:8px 2px">搜索结果</div><div class="menu-list">' + r.data.map((u) =>
+              '<div class="user-row">' +
+              '<span class="ur-avatar" style="background:' + C.gradientFor(u.username) + '">' + C.esc((u.nickname || u.username || "?")[0].toUpperCase()) + "</span>" +
+              '<div class="ur-main"><div class="ur-name">' + C.esc(u.nickname || u.username) + "</div>" +
+              '<div class="ur-sub">@' + C.esc(u.username) + "</div></div>" +
+              '<div class="ur-ops"><button class="btn btn-primary" style="height:30px;padding:0 12px;font-size:0.76rem" data-add="' + (u.id || "") + '" data-uid="' + C.esc(u.username) + '">加好友</button></div></div>'
+            ).join("") + "</div>";
+            $$("[data-add]", list).forEach((b) =>
+              b.addEventListener("click", async () => {
+                const r = await C.social.addFriend(b.dataset.uid, false);
+                UI().toast(r.ok ? "已添加好友" : r.error || "添加失败", r.ok ? "success" : "error");
+                if (r.ok) { input.value = ""; loadFriends(); }
+              })
+            );
+          } else {
+            list.innerHTML = UI().emptyState("search", "没有找到用户", "换个关键词试试");
+          }
+        }, 400);
+        input.addEventListener("input", doSearch);
+      }
+
+      if (socialState.tab === "online") {
+        const list = $("#onlineList", body);
+        C.social.listOnline().then((r) => {
+          if (!r.ok || !r.data || !r.data.length) {
+            list.innerHTML = UI().emptyState("trend", "当前没有好友在线", "好友 5 分钟内有活动就会显示在这里");
+            return;
+          }
+          list.innerHTML = '<div class="card-grid">' + r.data.map((u) =>
+            '<a class="song-card" href="#/user/' + u.id + '" style="cursor:pointer">' +
+            '<div style="display:flex;align-items:center;gap:12px">' +
+            '<span class="ur-avatar" style="width:52px;height:52px;background:' + C.gradientFor(u.username) + '">' + C.esc((u.nickname || u.username || "?")[0].toUpperCase()) + '<span class="ur-online"></span></span>' +
+            '<div class="grow"><div class="card-title ellipsis">' + C.esc(u.nickname || u.username) + "</div>" +
+            '<div class="card-sub ellipsis">@' + C.esc(u.username) + "</div></div></div></a>"
+          ).join("") + "</div>";
+        });
+      }
+
+      if (socialState.tab === "inbox") {
+        const list = $("#shareList", body);
+        const seen = C.read("mp_v1_shares_seen", []);
+        C.social.listShares().then((r) => {
+          if (!r.ok || !r.data || !r.data.length) {
+            list.innerHTML = UI().emptyState("inbox", "收件箱是空的", "好友分享的歌曲会出现在这里");
+            return;
+          }
+          list.innerHTML = r.data.map((s) => {
+            const song = s.song || {};
+            const cover = song.coverUrl
+              ? '<img src="' + C.esc(song.coverUrl) + '" alt=""/>'
+              : (song.emoji || "🎵");
+            const style = song.coverUrl ? "background:#111" : "background:" + C.gradientFor(song.title || "wave");
+            return (
+              '<div class="share-card">' +
+              '<div class="sc-cover" style="' + style + '">' + cover + "</div>" +
+              '<div class="sc-body">' +
+              '<div class="sc-from"><b>' + C.esc(s.from_name || s.from_username || "好友") + "</b> 给你分享了一首歌</div>" +
+              '<div class="sc-title">' + C.esc(song.title || "未知曲目") + "</div>" +
+              '<div class="sc-msg">' + C.esc(song.artist || "") + (s.message ? " · " + C.esc(s.message) : "") + "</div>" +
+              '<div class="sc-time">' + C.fmtTime(s.created_at || Date.now()) + "</div>" +
+              "</div>" +
+              '<div class="sc-ops">' +
+              '<button class="btn btn-primary" style="height:30px;padding:0 12px;font-size:0.76rem" data-shareplay=\'' + C.esc(JSON.stringify({ id: song.id, title: song.title, artist: song.artist, album: song.album, coverUrl: song.coverUrl, duration: song.duration, source: song.source })) + '\'>播放</button>' +
+              "</div></div>"
+            );
+          }).join("");
+          $$("[data-shareplay]", list).forEach((b) =>
+            b.addEventListener("click", () => {
+              try {
+                const raw = JSON.parse(b.dataset.shareplay);
+                const full = D.registerExternal(raw);
+                if (full) P().playList([full.id], 0);
+              } catch (e) { UI().toast("歌曲信息已失效", "error"); }
+            })
+          );
+          // 标记已读
+          const ids = r.data.map((s) => s.id);
+          C.write("mp_v1_shares_seen", Array.from(new Set(seen.concat(ids))).slice(-100));
+          UI().updateSocialBadge();
+        });
+      }
+    }
+
+    renderBody();
+    return el;
+  }
+
+  /* ==================== 他人主页 ==================== */
+  function userDetail(params) {
+    const el = page('<div class="loading-box"><span class="spinner"></span>加载中…</div>');
+    C.social.viewProfile(params.id).then((r) => {
+      if (!r.ok || !r.profile) {
+        el.innerHTML = UI().emptyState("user", "无法查看该用户", "可能设置了隐私或用户不存在", '<a class="btn btn-primary" href="#/social">返回社交</a>');
+        return;
+      }
+      const p = r.profile;
+      el.innerHTML =
+        '<div class="profile-hero">' +
+        '<span class="pf-avatar" style="background:' + C.gradientFor(p.username) + '">' + (p.avatar ? '<img src="' + C.esc(p.avatar) + '" alt=""/>' : C.esc((p.nickname || p.username || "?")[0].toUpperCase())) + "</span>" +
+        '<div class="grow"><div class="pf-name">' + C.esc(p.nickname || p.username) + "</div>" +
+        '<div class="pf-sig">' + (p.signature ? C.esc(p.signature) : "这个人很懒，什么都没写") + "</div>" +
+        '<div class="pf-tags">' +
+        (p.region ? '<span class="pf-tag">' + C.esc(p.region) + "</span>" : "") +
+        (p.gender ? '<span class="pf-tag">' + ({ male: "男", female: "女", secret: "保密" }[p.gender] || "保密") + "</span>" : "") +
+        (p.age ? '<span class="pf-tag">' + p.age + " 岁</span>" : "") +
+        (p.interests ? String(p.interests).split(/[,，]/).filter(Boolean).map((i) => '<span class="pf-tag">' + C.esc(i.trim()) + "</span>").join("") : "") +
+        "</div></div>" +
+        '<div class="ph-actions"><button class="btn btn-primary" id="udAdd">' + C.icon("user-plus", 14) + " 加好友</button></div>" +
+        "</div>";
+      const add = $("#udAdd", el);
+      if (add) add.addEventListener("click", async () => {
+        const rr = await C.social.addFriend(p.id, true);
+        UI().toast(rr.ok ? "已发送好友请求" : rr.error || "操作失败", rr.ok ? "success" : "error");
+      });
+    });
+    return el;
+  }
+
+  /* ==================== 我的 ==================== */
+  function profile() {
+    if (!C.isLoggedIn()) {
+      return page(UI().emptyState("user", "还没有登录", "登录后即可同步收藏、歌单与收听历史", '<button class="btn btn-primary" id="pfLogin">登录 / 注册</button>'));
+    }
+    const u = C.currentUser();
+    const favs = C.getFavorites().length;
+    const pls = C.getPlaylists().length;
+    const his = (C.getUserData().history || []).length;
+    const totalPlays = Object.values(C.getPlays()).reduce((a, b) => a + b, 0);
+
+    const el = page(
+      '<div class="profile-hero">' +
+      '<span class="pf-avatar" id="pfAvatar">' + C.esc(u[0].toUpperCase()) + "</span>" +
+      '<div class="grow"><div class="pf-name">' + C.esc(u) + ' <span style="font-size:0.72rem;color:var(--text-3);font-weight:400">@' + C.esc(u) + "</span></div>" +
+      '<div class="pf-sig" id="pfSig">这个人很懒，什么都没写</div>' +
+      '<div class="pf-tags" id="pfTags"></div></div>' +
+      '<button class="btn btn-ghost" id="pfEdit">' + C.icon("edit", 14) + " 编辑资料</button></div>" +
+
+      '<div class="stat-row">' +
+      statCard(favs, "收藏歌曲", "#/favorites") +
+      statCard(pls, "创建歌单", "#/playlists") +
+      statCard(his, "收听历史", "#/history") +
+      statCard(totalPlays, "全局播放", "") +
+      "</div>" +
+
+      '<div class="menu-list">' +
+      '<button class="menu-row" id="pfEdit2"><span class="mr-ic">' + C.icon("edit", 17) + '</span>编辑个人资料<span class="mr-chev">' + C.icon("chev-right", 15) + "</span></button>" +
+      '<button class="menu-row" id="pfSettings"><span class="mr-ic">' + C.icon("settings", 17) + '</span>设置<span class="mr-chev">' + C.icon("chev-right", 15) + "</span></button>" +
+      '<a class="menu-row" href="https://github.com/wyq1683/wyqaimusic" target="_blank" rel="noopener"><span class="mr-ic">' + C.icon("external", 17) + '</span>GitHub 开源仓库<span class="mr-chev">' + C.icon("external", 14) + "</span></a>" +
+      '<button class="menu-row danger" id="pfLogout"><span class="mr-ic">' + C.icon("logout", 17) + '</span>退出登录</button>' +
+      "</div>"
+    );
+
+    C.getProfile().then((p) => {
+      if (!p) return;
+      if (p.nickname) $(".pf-name", el).innerHTML = C.esc(p.nickname) + ' <span style="font-size:0.72rem;color:var(--text-3);font-weight:400">@' + C.esc(u) + "</span>";
+      if (p.signature) $("#pfSig", el).textContent = p.signature;
+      const av = $("#pfAvatar", el);
+      if (p.avatar) { av.innerHTML = '<img src="' + C.esc(p.avatar) + '" alt=""/>'; av.style.background = "#111"; }
+      const tags = [];
+      if (p.region) tags.push(p.region);
+      if (p.hobby) p.hobby.split(/[,，]/).filter(Boolean).slice(0, 3).forEach((h) => tags.push(h.trim()));
+      $("#pfTags", el).innerHTML = tags.map((t) => '<span class="pf-tag">' + C.esc(t) + "</span>").join("");
+    });
+
+    const edit = () => openProfileEdit(() => global.App.Router.refresh());
+    $("#pfEdit", el).addEventListener("click", edit);
+    $("#pfEdit2", el).addEventListener("click", edit);
+    $("#pfSettings", el).addEventListener("click", () => { location.hash = "#/settings"; });
+    $("#pfLogout", el).addEventListener("click", () =>
+      UI().confirmDialog({ title: "退出登录", message: "确定退出当前账号吗？", okText: "退出" }).then((ok) => {
+        if (!ok) return;
+        C.logout();
+        UI().toast("已退出登录");
+        location.hash = "#/home";
+      })
+    );
+    return el;
+
+    function statCard(num, label, href) {
+      const inner = '<div class="stat-num">' + num + '</div><div class="stat-label">' + C.esc(label) + "</div>";
+      return href ? '<a class="stat-card" href="' + href + '">' + inner + "</a>" : '<div class="stat-card">' + inner + "</div>";
+    }
+  }
+
+  /* ==================== 编辑资料 ==================== */
+  function openProfileEdit(done) {
+    if (!C.isLoggedIn()) { UI().openAuthModal("login"); return; }
+    C.getProfile(true).then((p) => {
+      p = p || {};
+      const body =
+        '<div style="display:flex;align-items:center;gap:14px;margin-bottom:16px">' +
+        '<span class="pf-avatar" id="peAvatar" style="width:56px;height:56px;font-size:1.3rem;background:' + (p.avatar ? "#111" : C.gradientFor(C.currentUser())) + '">' +
+        (p.avatar ? '<img src="' + C.esc(p.avatar) + '" alt=""/>' : C.esc(C.currentUser()[0].toUpperCase())) + "</span>" +
+        '<div class="grow"><input class="field-input" id="peAvatarUrl" placeholder="头像图片 URL" value="' + C.esc(p.avatar || "") + '" />' +
+        '<label class="btn btn-ghost" style="margin-top:6px;height:30px;font-size:0.76rem;cursor:pointer">上传图片<input type="file" id="peAvatarFile" accept="image/*" hidden /></label></div></div>' +
+        '<div class="field"><label class="field-label">昵称</label><input class="field-input" id="peNickname" maxlength="32" placeholder="你的昵称" value="' + C.esc(p.nickname || "") + '" /></div>' +
+        '<div class="field"><label class="field-label">个性签名</label><textarea class="field-input" id="peSig" maxlength="100" rows="2" placeholder="写一句你的个性签名">' + C.esc(p.signature || "") + "</textarea></div>" +
+        '<div style="display:flex;gap:10px"><div class="field grow"><label class="field-label">地区</label><input class="field-input" id="peRegion" maxlength="64" placeholder="如：河南 洛阳" value="' + C.esc(p.region || "") + '" /></div>' +
+        '<div class="field grow"><label class="field-label">年龄</label><input class="field-input" id="peAge" type="number" min="1" max="150" placeholder="年龄" value="' + (p.age || "") + '" /></div></div>' +
+        '<div class="field"><label class="field-label">爱好（逗号分隔）</label><input class="field-input" id="peHobby" maxlength="120" placeholder="如：音乐、航拍、旅行" value="' + C.esc(p.hobby || "") + '" /></div>' +
+        '<div class="field"><label class="field-label">我的兴趣流派（用于推荐，最多 8 个）</label><div class="chip-row" id="peInterests">' +
+        D.GENRES.map((g) => '<button class="chip' + ((p.interests || "").includes(g) ? " active" : "") + '" data-interest="' + g + '">' + g + "</button>").join("") +
+        "</div></div>";
+
+      UI().modal({
+        title: "编辑个人资料",
+        body,
+        width: "460px",
+        actions: { cancel: "取消", ok: "保存" },
+        onOk: async (box, close) => {
+          const fields = {
+            nickname: $("#peNickname", box).value.trim(),
+            avatar: $("#peAvatarUrl", box).value.trim(),
+            signature: $("#peSig", box).value.trim(),
+            region: $("#peRegion", box).value.trim(),
+            age: parseInt($("#peAge", box).value, 10) || null,
+            hobby: $("#peHobby", box).value.trim(),
+            interests: $$("[data-interest].active", box).map((b) => b.dataset.interest).join(","),
+          };
+          const r = await C.updateProfile(fields);
+          if (r.ok) { close(); UI().toast("资料已保存", "success"); if (done) done(); }
+          else UI().toast(r.error || "保存失败", "error");
+        },
+      });
+
+      // 兴趣 chips 多选
+      $$("[data-interest]").forEach((b) => b.addEventListener("click", () => {
+        const actives = $$("[data-interest].active");
+        if (!b.classList.contains("active") && actives.length >= 8) { UI().toast("最多选择 8 个兴趣"); return; }
+        b.classList.toggle("active");
+      }));
+      // 头像上传
+      const file = $("#peAvatarFile");
+      if (file) file.addEventListener("change", async () => {
+        if (!file.files || !file.files[0]) return;
+        const r = await C.uploadAvatar(file.files[0]);
+        if (r.ok && r.url) {
+          $("#peAvatarUrl").value = r.url;
+          $("#peAvatar").innerHTML = '<img src="' + C.esc(r.url) + '" alt=""/>';
+          UI().toast("头像已上传", "success");
+        } else UI().toast(r.error || "上传失败", "error");
+      });
+    });
+  }
+
+  /* ==================== 艺人 / 专辑 ==================== */
+  function artist(params) {
+    const a = D.getArtist(params.name);
+    if (!a) return page(UI().emptyState("user", "没有找到这位艺人", "", '<a class="btn btn-primary" href="#/library">去曲库</a>'));
+    return detailPage({
+      round: true,
+      art: a.songs[0],
+      kicker: "艺人",
+      title: a.name,
+      meta: a.count + " 首歌曲",
+      songs: a.songs,
+    });
+  }
+
+  function album(params) {
+    const a = D.getAlbum(params.name);
+    if (!a) return page(UI().emptyState("disc", "没有找到这张专辑", "", '<a class="btn btn-primary" href="#/library">去曲库</a>'));
+    return detailPage({
+      round: false,
+      art: a.songs[0],
+      kicker: "专辑 · " + a.artist,
+      title: a.name,
+      meta: a.count + " 首歌曲",
+      songs: a.songs,
+    });
+  }
+
+  function detailPage(o) {
+    let html =
+      '<div class="detail-hero" style="--hero-grad:linear-gradient(135deg,' + o.art.c.from + "33,transparent)" + '">' +
+      '<div class="dh-art' + (o.round ? " round" : "") + '" style="background:linear-gradient(150deg,' + o.art.c.from + "," + o.art.c.to + ')">' + (o.art.emoji || "🎵") + "</div>" +
+      '<div class="ph-info"><div class="ph-kicker">' + C.esc(o.kicker) + "</div>" +
+      '<div class="ph-title">' + C.esc(o.title) + "</div>" +
+      '<div class="ph-meta"><span>' + C.esc(o.meta) + "</span></div>" +
+      '<div class="ph-actions">' +
+      '<button class="btn btn-primary" id="dpPlayAll">' + C.icon("play", 14) + " 播放全部</button>" +
+      '<button class="btn btn-ghost" id="dpShuffle">' + C.icon("shuffle", 14) + " 随机播放</button>" +
+      "</div></div></div>";
+    html += UI().songListHTML(o.songs);
+    const el = page(html);
+    $("#dpPlayAll", el).addEventListener("click", () => P().playList(o.songs.map((s) => s.id), 0));
+    $("#dpShuffle", el).addEventListener("click", () => P().playList(o.songs.map((s) => s.id), Math.floor(Math.random() * o.songs.length)));
+    return el;
+  }
+
+  /* ==================== 正在播放 ==================== */
+  function nowPlaying() {
+    const song0 = P().currentSong();
+    if (!song0) {
+      return page(UI().emptyState("music", "还没有开始播放", "选一首歌，进入沉浸模式", '<a class="btn btn-primary" href="#/library">去曲库</a>'));
+    }
+    let npSong = song0; // 跟随 player:changed 原地更新，避免整页重挂载
+    let html =
+      '<div class="np-page">' +
+      '<div class="np-cover-wrap">' +
+      '<div class="np-cover spinning" id="npCover" style="background:linear-gradient(150deg,' + npSong.c.from + "," + npSong.c.to + ')">' +
+      (npSong.coverUrl ? '<img src="' + C.esc(npSong.coverUrl) + '" alt="' + C.esc(npSong.title) + '" />' : (npSong.emoji || "🎵")) + "</div>" +
+      '<div><div class="np-title">' + C.esc(npSong.title) + "</div>" +
+      '<div class="np-artist">' + C.esc(npSong.artist) + " · " + C.esc(npSong.album || "") + "</div>" +
+      '<div class="np-badge-row">' +
+      (npSong.vip ? '<span class="pf-tag" style="color:var(--warning);background:rgba(255,184,77,.12)">VIP</span>' : "") +
+      '<span class="pf-tag">' + (npSong.external ? (npSong.id.indexOf("ne_") === 0 ? "网易云音乐" : npSong.id.indexOf("qq_") === 0 ? "QQ音乐" : "Audius") : "本地曲库") + "</span>" +
+      '<span class="pf-tag">' + (npSong.durStr || "") + "</span>" +
+      "</div></div>" +
+      '<div class="ph-actions" style="justify-content:center">' +
+      '<button class="icon-btn" id="npFav" aria-label="收藏" aria-pressed="' + C.isFavorite(npSong.id) + '">' + C.icon(C.isFavorite(npSong.id) ? "heart-fill" : "heart", 19) + "</button>" +
+      '<button class="icon-btn" id="npAddPl" aria-label="添加到歌单">' + C.icon("playlist", 19) + "</button>" +
+      '<button class="icon-btn" id="npShare" aria-label="分享">' + C.icon("share", 19) + "</button>" +
+      '<button class="icon-btn" id="npBack" aria-label="返回">' + C.icon("arrow-left", 19) + "</button>" +
+      "</div></div>" +
+
+      '<div><div class="social-tabs" style="margin-bottom:14px">' +
+      '<button class="stab active" data-nptab="lyric">歌词</button>' +
+      '<button class="stab" data-nptab="queue">队列 ' + P().queueList().length + "</button>" +
+      "</div>" +
+      '<div id="npLyricPane"></div>' +
+      '<div id="npQueuePane" hidden></div></div>' +
+      "</div>";
+
+    const el = page(html);
+
+    // 歌词渲染
+    function renderLyric() {
+      const pane = $("#npLyricPane", el);
+      const lyrics = P().state.lyrics;
+      if (!lyrics || !lyrics.length) {
+        pane.innerHTML = '<div class="np-lyrics"><div class="lyric-empty">' + (npSong.external ? "暂无歌词" : "本地曲目暂无歌词，播放网易云 / QQ 音乐歌曲可自动加载") + "</div></div>";
+        return;
+      }
+      pane.innerHTML =
+        '<div class="np-lyrics" id="npLyricScroll">' +
+        lyrics.map((l, i) => '<div class="lyric-line" data-li="' + i + '">' + l.text + "</div>").join("") +
+        "</div>";
+    }
+    function renderQueue() {
+      const pane = $("#npQueuePane", el);
+      const q = P().queueList();
+      const cur = P().state.index;
+      pane.innerHTML =
+        '<div class="q-head"><span>队列 · ' + q.length + " 首</span></div>" +
+        q.map((id, i) => {
+          const s = D.get(id);
+          if (!s) return "";
+          return (
+            '<div class="q-item' + (i === cur ? " playing" : "") + '" data-qidx="' + i + '">' +
+            UI().smallCover(s, "q-cover") +
+            '<div class="q-body"><div class="q-title ellipsis">' + C.esc(s.title) + "</div>" +
+            '<div class="q-sub ellipsis">' + C.esc(s.artist) + "</div></div>" +
+            (i === cur ? '<span class="eq-bars"><i></i><i></i><i></i><i></i></span>' : '<span class="q-dur">' + s.durStr + "</span>") +
+            "</div>"
+          );
+        }).join("");
+      $$("[data-qidx]", pane).forEach((item) => item.addEventListener("click", () => P().playAt(parseInt(item.dataset.qidx, 10))));
+    }
+
+    let npTab = "lyric";
+    $$("[data-nptab]", el).forEach((b) =>
+      b.addEventListener("click", () => {
+        npTab = b.dataset.nptab;
+        $$("[data-nptab]", el).forEach((x) => x.classList.toggle("active", x === b));
+        $("#npLyricPane", el).hidden = npTab !== "lyric";
+        $("#npQueuePane", el).hidden = npTab !== "queue";
+        if (npTab === "queue") renderQueue();
+      })
+    );
+    renderLyric();
+
+    // 歌词行高亮
+    const onLyricLine = (idx) => {
+      $$("#npLyricPane .lyric-line", el).forEach((l, i) => {
+        const on = i === idx;
+        if (on !== l.classList.contains("active")) {
+          l.classList.toggle("active", on);
+          if (on) l.scrollIntoView({ block: "center", behavior: "smooth" });
+        }
+      });
+    };
+    bus.on("player:lyricline", onLyricLine);
+    bus.on("player:lyric", () => { if (!$("#npLyricScroll", el)) renderLyric(); });
+    bus.on("player:queue", () => {
+      const tab = $("[data-nptab='queue']", el);
+      if (tab) tab.innerHTML = "队列 " + P().queueList().length;
+      if (npTab === "queue") renderQueue();
+    });
+
+    // 切歌时原地更新（避免整页重挂载丢失歌词滚动 / 队列 tab / 收藏态）
+    function updateSongInfo(s) {
+      npSong = s;
+      $(".np-title", el).textContent = s.title;
+      $(".np-artist", el).textContent = s.artist + " · " + (s.album || "");
+      const cover = $("#npCover", el);
+      cover.style.background = "linear-gradient(150deg," + s.c.from + "," + s.c.to + ")";
+      cover.innerHTML = s.coverUrl ? '<img src="' + C.esc(s.coverUrl) + '" alt="' + C.esc(s.title) + '" />' : (s.emoji || "🎵");
+      $(".np-badge-row", el).innerHTML =
+        (s.vip ? '<span class="pf-tag" style="color:var(--warning);background:rgba(255,184,77,.12)">VIP</span>' : "") +
+        '<span class="pf-tag">' + (s.external ? (s.id.indexOf("ne_") === 0 ? "网易云音乐" : s.id.indexOf("qq_") === 0 ? "QQ音乐" : "Audius") : "本地曲库") + "</span>" +
+        '<span class="pf-tag">' + (s.durStr || "") + "</span>";
+      const favBtn = $("#npFav", el);
+      const fav = C.isFavorite(s.id);
+      favBtn.setAttribute("aria-pressed", fav);
+      favBtn.innerHTML = C.icon(fav ? "heart-fill" : "heart", 19);
+      favBtn.style.color = fav ? "var(--danger)" : "";
+      renderLyric();
+      if (npTab === "queue") renderQueue();
+    }
+    const onSongChanged = (s) => { if (s) updateSongInfo(s); };
+    bus.on("player:changed", onSongChanged);
+
+    // 页面移除时解绑监听
+    const obs = new MutationObserver(() => {
+      if (!document.body.contains(el)) {
+        bus.off("player:lyricline", onLyricLine);
+        bus.off("player:changed", onSongChanged);
+        obs.disconnect();
+      }
+    });
+    obs.observe($("#view"), { childList: true });
+
+    // 操作按钮
+    const favBtn = $("#npFav", el);
+    favBtn.addEventListener("click", () => {
+      if (!C.isLoggedIn()) { UI().toast("请先登录", "error"); UI().openAuthModal("login"); return; }
+      const fav = C.toggleFavorite(npSong.id);
+      favBtn.setAttribute("aria-pressed", fav);
+      favBtn.innerHTML = C.icon(fav ? "heart-fill" : "heart", 19);
+      favBtn.style.color = fav ? "var(--danger)" : "";
+      UI().toast(fav ? "已加入收藏" : "已取消收藏", "success");
+    });
+    if (C.isFavorite(npSong.id)) favBtn.style.color = "var(--danger)";
+    $("#npAddPl", el).addEventListener("click", () => UI().openPlaylistPicker(npSong));
+    $("#npShare", el).addEventListener("click", () => UI().openShareModal(npSong));
+    $("#npBack", el).addEventListener("click", () => history.back());
+    return el;
+  }
+
+  /* ==================== 设置 ==================== */
+  function settings() {
+    const s = C.getSettings();
+    const accents = [
+      { name: "跟随歌曲", val: "" },
+      { name: "极光紫", val: "#7c5cff" },
+      { name: "霓虹粉", val: "#ff5c9d" },
+      { name: "湖水蓝", val: "#38bdf8" },
+      { name: "青柠绿", val: "#3ddc97" },
+      { name: "落日橙", val: "#ff9a3d" },
+      { name: "警戒红", val: "#ff5c6c" },
+    ];
+
+    let html =
+      '<div class="set-section"><div class="sec-head"><div class="sec-title">外观</div></div><div class="set-card">' +
+      '<div class="set-row"><div class="set-info"><div class="set-name">主题模式</div><div class="set-desc">深色沉浸 / 浅色清新</div></div>' +
+      '<div class="set-ctrl"><button class="btn btn-ghost" id="stTheme" style="height:32px">' + (s.theme === "dark" ? "切换到浅色" : "切换到深色") + "</button></div></div>" +
+
+      '<div class="set-row"><div class="set-info"><div class="set-name">主题强调色</div><div class="set-desc">默认跟随播放中歌曲的封面取色</div></div>' +
+      '<div class="set-ctrl"><div class="swatches" id="stAccents">' +
+      accents.map((a) => '<button class="swatch' + (s.accent === a.val ? " active" : "") + '" data-accent="' + a.val + '" title="' + a.name + '" style="' + (a.val ? "background:" + a.val + ";color:" + a.val : "background:conic-gradient(#7c5cff,#ff5c9d,#38bdf8,#7c5cff)") + '"></button>').join("") +
+      "</div></div></div>" +
+
+      '<div class="set-row"><div class="set-info"><div class="set-name">背景</div><div class="set-desc">极光动效 / 图片背景</div></div>' +
+      '<div class="set-ctrl"><div class="bg-presets" id="stBgs">' +
+      bgPresetBtn("aurora", "极光", "", s.bgPreset) +
+      bgPresetBtn("desktop", "桌面", "assets/bg-desktop.jpg", s.bgPreset) +
+      bgPresetBtn("mobile", "移动", "assets/bg-mobile.jpg", s.bgPreset) +
+      bgPresetBtn("none", "纯色", "", s.bgPreset) +
+      "</div></div></div>" +
+
+      '<div class="set-row"><div class="set-info"><div class="set-name">背景模糊</div><div class="set-desc">数值越大背景越朦胧</div></div>' +
+      '<div class="set-ctrl"><input type="range" class="range" id="stBlur" min="0" max="30" value="' + s.bgBlur + '" /><span class="range-val" id="stBlurVal">' + s.bgBlur + "px</span></div></div>" +
+
+      '<div class="set-row"><div class="set-info"><div class="set-name">界面透明度</div><div class="set-desc">玻璃拟态面板的透光程度</div></div>' +
+      '<div class="set-ctrl"><input type="range" class="range" id="stGlass" min="0" max="100" value="' + s.glass + '" /><span class="range-val" id="stGlassVal">' + s.glass + "%</span></div></div>" +
+      "</div></div>" +
+
+      '<div class="set-section"><div class="sec-head"><div class="sec-title">播放</div></div><div class="set-card">' +
+      '<div class="set-row"><div class="set-info"><div class="set-name">音量增强</div><div class="set-desc">通过 Web Audio 增益突破 100% 音量上限</div></div>' +
+      '<div class="set-ctrl"><div class="chip-row" id="stBoost">' +
+      [1, 1.25, 1.5, 2].map((b) => '<button class="chip' + (s.boost === b ? " active" : "") + '" data-boost="' + b + '">' + Math.round(b * 100) + "%</button>").join("") +
+      "</div></div></div>" +
+      '<div class="set-row"><div class="set-info"><div class="set-name">触感反馈</div><div class="set-desc">支持震动的设备上播放操作时轻震</div></div>' +
+      '<div class="set-ctrl"><button class="switch' + (s.haptics ? " on" : "") + '" id="stHaptic" role="switch" aria-checked="' + s.haptics + '" aria-label="触感反馈"></button></div></div>' +
+      "</div></div>" +
+
+      '<div class="set-section"><div class="sec-head"><div class="sec-title">账户</div></div><div class="set-card">' +
+      (C.isLoggedIn()
+        ? '<div class="set-row"><div class="set-info"><div class="set-name">' + C.esc(C.currentUser()) + '</div><div class="set-desc">收藏 / 歌单 / 历史已开启云端同步</div></div>' +
+          '<div class="set-ctrl"><button class="btn btn-ghost" id="stEdit" style="height:32px">编辑资料</button>' +
+          '<button class="btn btn-danger" id="stLogout" style="height:32px">退出</button></div></div>'
+        : '<div class="set-row"><div class="set-info"><div class="set-name">未登录</div><div class="set-desc">登录后体验云同步与社交功能</div></div>' +
+          '<div class="set-ctrl"><button class="btn btn-primary" id="stLogin" style="height:32px">登录 / 注册</button></div></div>') +
+      "</div></div>" +
+
+      '<div class="set-section"><div class="sec-head"><div class="sec-title">关于</div></div><div class="set-card">' +
+      '<div class="set-row"><div class="set-info"><div class="set-name">Wave 音乐播放器</div><div class="set-desc">原生 JavaScript · PHP · MySQL · 部署于 InfinityFree</div></div>' +
+      '<div class="set-ctrl" style="color:var(--text-3);font-size:0.78rem">v2.0</div></div>' +
+      '<div class="set-row"><div class="set-info"><div class="set-name">音源</div><div class="set-desc">网易云音乐 / QQ音乐 / Audius / 本地曲库</div></div></div>' +
+      '<a class="set-row" href="https://github.com/wyq1683/wyqaimusic" target="_blank" rel="noopener"><div class="set-info"><div class="set-name">开源仓库</div><div class="set-desc">github.com/wyq1683/wyqaimusic</div></div>' +
+      '<span class="mr-chev">' + C.icon("external", 15) + "</span></a>" +
+      "</div></div>";
+
+    const el = page(html);
+
+    // 主题
+    $("#stTheme", el).addEventListener("click", () => {
+      const next = C.getSettings().theme === "dark" ? "light" : "dark";
+      C.saveSettings({ theme: next });
+      $("#stTheme", el).textContent = next === "dark" ? "切换到浅色" : "切换到深色";
+    });
+    // 主题色
+    $$("[data-accent]", el).forEach((b) =>
+      b.addEventListener("click", () => {
+        const v = b.dataset.accent;
+        C.saveSettings({ accent: v });
+        if (!v && P().currentSong()) C.applySongAccent(P().currentSong());
+        $$("[data-accent]", el).forEach((x) => x.classList.toggle("active", x === b));
+        UI().toast(v ? "主题色已更新" : "已恢复跟随歌曲封面");
+      })
+    );
+    // 背景
+    $$("[data-bg]", el).forEach((b) =>
+      b.addEventListener("click", () => {
+        const v = b.dataset.bg;
+        C.saveSettings({ bgPreset: v });
+        applyBg(v);
+        $$("[data-bg]", el).forEach((x) => x.classList.toggle("active", x === b));
+      })
+    );
+    function applyBg(v) {
+      const aurora = $(".bg-aurora");
+      const stars = $("#stars");
+      if (v === "none") {
+        aurora.style.display = "none";
+        stars.style.display = "none";
+        document.body.style.background = "var(--bg-0)";
+      } else if (v === "aurora") {
+        aurora.style.display = "";
+        stars.style.display = "";
+        document.body.style.background = "";
+      } else {
+        aurora.style.display = "none";
+        stars.style.display = "none";
+        document.body.style.background = "url('assets/" + v + ".jpg') center/cover fixed no-repeat";
+      }
+    }
+    applyBg(s.bgPreset);
+    // 滑杆
+    $("#stBlur", el).addEventListener("input", (e) => {
+      C.saveSettings({ bgBlur: parseInt(e.target.value, 10) });
+      $("#stBlurVal", el).textContent = e.target.value + "px";
+    });
+    $("#stGlass", el).addEventListener("input", (e) => {
+      C.saveSettings({ glass: parseInt(e.target.value, 10) });
+      $("#stGlassVal", el).textContent = e.target.value + "%";
+    });
+    // 音量增强
+    $$("[data-boost]", el).forEach((b) =>
+      b.addEventListener("click", () => {
+        const v = parseFloat(b.dataset.boost);
+        C.saveSettings({ boost: v });
+        P().setBoost(v);
+        $$("[data-boost]", el).forEach((x) => x.classList.toggle("active", x === b));
+        UI().toast("音量增强 " + Math.round(v * 100) + "%");
+      })
+    );
+    P().setBoost(s.boost);
+    // 触感
+    $("#stHaptic", el).addEventListener("click", () => {
+      const on = !C.getSettings().haptics;
+      C.saveSettings({ haptics: on });
+      $("#stHaptic", el).classList.toggle("on", on);
+      $("#stHaptic", el).setAttribute("aria-checked", on);
+    });
+    // 账户
+    const lg = $("#stLogin", el);
+    if (lg) lg.addEventListener("click", () => UI().openAuthModal("login"));
+    const ed = $("#stEdit", el);
+    if (ed) ed.addEventListener("click", () => openProfileEdit());
+    const lo = $("#stLogout", el);
+    if (lo) lo.addEventListener("click", () =>
+      UI().confirmDialog({ title: "退出登录", message: "确定退出当前账号吗？", okText: "退出" }).then((ok) => {
+        if (!ok) return;
+        C.logout();
+        UI().toast("已退出登录");
+        global.App.Router.refresh();
+      })
+    );
+    return el;
+
+    function bgPresetBtn(key, name, img, cur) {
+      const style = img ? "background-image:url('" + img + "')" : key === "aurora" ? "background:linear-gradient(135deg,#1a1c2e,#101322)" : "background:var(--bg-2)";
+      return '<button class="bg-preset' + (cur === key ? " active" : "") + '" data-bg="' + key + '" title="' + name + '" style="' + style + '"></button>';
+    }
+  }
+
+  /* ==================== 导出 ==================== */
+  global.App.Pages = {
+    "/home": home,
+    "/library": library,
+    "/search": search,
+    "/favorites": favorites,
+    "/playlists": playlists,
+    "/playlist/:id": playlistDetail,
+    "/history": history,
+    "/social": social,
+    "/user/:id": userDetail,
+    "/profile": profile,
+    "/artist/:name": artist,
+    "/album/:name": album,
+    "/now-playing": nowPlaying,
+    "/settings": settings,
+  };
+})(window);

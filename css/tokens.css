@@ -1,0 +1,107 @@
+/* ============================================================
+ * tokens.css — Wave 2.0 设计令牌
+ * 色彩 / 玻璃态 / 圆角 / 阴影 / 动效曲线 / 布局尺寸
+ * 主题切换仅改变量值，组件样式零改动
+ * ============================================================ */
+
+:root {
+  /* ---- 色彩：深空基底 ---- */
+  --bg-0: #05060c;
+  --bg-1: #0a0c16;
+  --bg-2: #10131f;
+
+  /* ---- 玻璃表面 ---- */
+  --glass-bg: rgba(15, 17, 28, 0.66);
+  --glass-bg-strong: rgba(13, 15, 25, 0.86);
+  --glass-card: rgba(255, 255, 255, 0.045);
+  --glass-card-hover: rgba(255, 255, 255, 0.08);
+  --hairline: rgba(255, 255, 255, 0.09);
+  --hairline-strong: rgba(255, 255, 255, 0.16);
+
+  /* ---- 文本 ---- */
+  --text-1: #f3f5fb;
+  --text-2: #a8aec4;
+  --text-3: #6a7089;
+
+  /* ---- 主题强调色（JS 随歌曲封面动态覆写） ---- */
+  --accent: #7c5cff;
+  --accent-soft: rgba(124, 92, 255, 0.16);
+  --accent-glow: rgba(124, 92, 255, 0.45);
+  --accent-text: #b7a6ff;
+
+  /* ---- 语义色 ---- */
+  --danger: #ff5c6c;
+  --success: #3ddc97;
+  --warning: #ffb84d;
+
+  /* ---- 玻璃模糊 ---- */
+  --glass-blur: 20px;
+
+  /* ---- 圆角 ---- */
+  --r-xs: 6px;
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-xl: 28px;
+  --r-full: 999px;
+
+  /* ---- 阴影 ---- */
+  --shadow-1: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-2: 0 8px 28px rgba(0, 0, 0, 0.42);
+  --shadow-3: 0 18px 56px rgba(0, 0, 0, 0.55);
+  --shadow-glow: 0 6px 28px var(--accent-glow);
+
+  /* ---- 动效 ---- */
+  --ease-spring: cubic-bezier(0.22, 1.15, 0.36, 1);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-1: 0.16s;
+  --dur-2: 0.28s;
+  --dur-3: 0.45s;
+  --dur-4: 0.7s;
+
+  /* ---- 布局 ---- */
+  --sidebar-w: 236px;
+  --sidebar-w-mini: 68px;
+  --topbar-h: 58px;
+  --player-h: 74px;
+  --tabbar-h: 58px;
+
+  /* ---- 字体 ---- */
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  --font-num: "SF Pro Display", -apple-system, "Segoe UI", sans-serif;
+}
+
+/* ---- 浅色主题 ---- */
+body[data-theme="light"] {
+  --bg-0: #eef0f7;
+  --bg-1: #f6f7fb;
+  --bg-2: #ffffff;
+
+  --glass-bg: rgba(255, 255, 255, 0.78);
+  --glass-bg-strong: rgba(255, 255, 255, 0.92);
+  --glass-card: rgba(20, 24, 40, 0.04);
+  --glass-card-hover: rgba(20, 24, 40, 0.08);
+  --hairline: rgba(20, 24, 40, 0.1);
+  --hairline-strong: rgba(20, 24, 40, 0.18);
+
+  --text-1: #171a26;
+  --text-2: #565b6e;
+  --text-3: #8a90a5;
+
+  --accent-soft: rgba(124, 92, 255, 0.12);
+  --shadow-1: 0 2px 8px rgba(20, 24, 40, 0.08);
+  --shadow-2: 0 8px 28px rgba(20, 24, 40, 0.12);
+  --shadow-3: 0 18px 56px rgba(20, 24, 40, 0.16);
+}
+
+/* ---- 降低动效偏好 ---- */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-1: 0.01s;
+    --dur-2: 0.01s;
+    --dur-3: 0.01s;
+    --dur-4: 0.01s;
+  }
+}

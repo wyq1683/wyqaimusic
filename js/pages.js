@@ -969,7 +969,7 @@
       '<button class="icon-btn" id="npBack" aria-label="返回">' + C.icon("arrow-left", 19) + "</button>" +
       "</div></div>" +
 
-      '<div><div class="social-tabs" style="margin-bottom:14px">' +
+      '<div class="np-side"><div class="social-tabs" style="margin-bottom:14px">' +
       '<button class="stab active" data-nptab="lyric">歌词</button>' +
       '<button class="stab" data-nptab="queue">队列 ' + P().queueList().length + "</button>" +
       "</div>" +
@@ -1014,15 +1014,44 @@
     }
 
     let npTab = "lyric";
-    $$("[data-nptab]", el).forEach((b) =>
+    // 队列面板按剩余高度自适应限高，避免长列表把面板顶到播放条后面
+    function fitQueueHeight() {
+      const pane = $("#npQueuePane", el);
+      if (!pane || pane.hidden) return;
+      const np = $(".np-page", el);
+      const stacked = np && getComputedStyle(np).gridTemplateColumns.split(" ").length < 2;
+      if (stacked) { pane.style.maxHeight = ""; return; } // 堆叠布局由 CSS 固定高度，避免切 Tab 时整页跳动
+      const top = pane.getBoundingClientRect().top;
+      const avail = window.innerHeight - Math.max(top, 72) - 26;
+      pane.style.maxHeight = Math.max(120, Math.min(460, Math.round(avail))) + "px";
+    }
+    const onNpResize = () => fitQueueHeight();
+    $$("[data-nptab]", el).forEach((b) => {
+      // 鼠标点击不取焦：列表变高后浏览器会把“焦点元素”滚进视野，导致整页跳到列表底部
+      b.addEventListener("mousedown", (e) => { if (e.button === 0) e.preventDefault(); });
       b.addEventListener("click", () => {
+        const view = document.getElementById("view");
+        const keepTop = view ? view.scrollTop : 0; // 切 Tab 后锁住滚动位置，避免整页跳到列表底部
         npTab = b.dataset.nptab;
         $$("[data-nptab]", el).forEach((x) => x.classList.toggle("active", x === b));
         $("#npLyricPane", el).hidden = npTab !== "lyric";
         $("#npQueuePane", el).hidden = npTab !== "queue";
         if (npTab === "queue") renderQueue();
-      })
-    );
+        requestAnimationFrame(() => {
+          if (view) view.scrollTop = keepTop;
+          fitQueueHeight();
+          // 堆叠布局下队列可能在首屏下方：切过来时滚到可见处，避免“点了没反应”的错觉
+          const pane = $("#npQueuePane", el);
+          if (pane && !pane.hidden && view) {
+            const r = pane.getBoundingClientRect();
+            if (r.bottom > window.innerHeight + 8) {
+              view.scrollTo({ top: view.scrollTop + r.top - 72, behavior: "smooth" });
+            }
+          }
+        });
+      });
+    });
+    window.addEventListener("resize", onNpResize);
     renderLyric();
 
     // ---- 播放控制（正在播放页自持控制，底栏在 data-np 下被隐藏）----
@@ -1144,11 +1173,13 @@
 
     // 歌词行高亮
     const onLyricLine = (idx) => {
+      const box = $("#npLyricScroll", el);
       $$("#npLyricPane .lyric-line", el).forEach((l, i) => {
         const on = i === idx;
         if (on !== l.classList.contains("active")) {
           l.classList.toggle("active", on);
-          if (on) l.scrollIntoView({ block: "center", behavior: "smooth" });
+          // 只滚歌词容器，不能用 scrollIntoView（它会连带滚动 #view，把整页拉走）
+          if (on && box) box.scrollTo({ top: l.offsetTop - box.clientHeight / 2 + l.offsetHeight / 2, behavior: "smooth" });
         }
       });
     };
@@ -1157,7 +1188,7 @@
     bus.on("player:queue", () => {
       const tab = $("[data-nptab='queue']", el);
       if (tab) tab.innerHTML = "队列 " + P().queueList().length;
-      if (npTab === "queue") renderQueue();
+      if (npTab === "queue") { renderQueue(); fitQueueHeight(); }
     });
 
     // 切歌时原地更新（避免整页重挂载丢失歌词滚动 / 队列 tab / 收藏态）
@@ -1193,6 +1224,7 @@
         if (specRAF) cancelAnimationFrame(specRAF);
         document.removeEventListener("keydown", onEscMode);
         document.removeEventListener("fullscreenchange", onFsChange);
+        window.removeEventListener("resize", onNpResize);
         document.body.classList.remove("immersive", "np-landscape");
         obs.disconnect();
       }

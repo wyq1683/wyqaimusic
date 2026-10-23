@@ -943,11 +943,13 @@
   }
 
   bus.on("player:lyricline", (idx) => {
+    const box = $("#drawerLyricScroll");
     $$("#drawerLyric .lyric-line").forEach((l, i) => {
       const on = i === idx;
       if (on !== l.classList.contains("active")) {
         l.classList.toggle("active", on);
-        if (on) l.scrollIntoView({ block: "center", behavior: "smooth" });
+        // 只滚歌词容器（scrollIntoView 会连带把页面滚走）
+        if (on && box) box.scrollTo({ top: l.offsetTop - box.clientHeight / 2 + l.offsetHeight / 2, behavior: "smooth" });
       }
     });
   });

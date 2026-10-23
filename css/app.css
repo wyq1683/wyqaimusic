@@ -2070,3 +2070,68 @@ body.np-landscape .np-lyrics { height: min(46vh, 320px); padding: 6% 4px; }
   body.np-landscape .np-lyrics { padding: 4% 2px; height: 72vh; }
   body.np-landscape .social-tabs { margin-bottom: 2px; }
 }
+
+/* ==================== 10. 长列表与矮窗口适配（v2.1.1） ==================== */
+/* 分享卡片 / 收件箱里的小封面：此前没有尺寸约束，原图会把弹窗撑爆 */
+.sc-cover {
+  width: 46px;
+  height: 46px;
+  flex: none;
+  border-radius: var(--r-sm);
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  font-size: 1.2rem;
+  background-size: cover;
+  background-position: center;
+  box-shadow: var(--shadow-1);
+}
+.sc-cover img { width: 100%; height: 100%; object-fit: cover; }
+
+/* 正在播放页的队列面板：独立滚动，长队列不再把整页撑长 */
+#npQueuePane {
+  max-height: min(460px, 56vh);
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+/* 矮窗口（笔记本 768~800 高、横屏平板）：封面按视口收缩，控件始终留在屏内 */
+@media (max-height: 760px) {
+  .np-cover { width: min(280px, 30vh); }
+  body.np-landscape .np-cover { width: min(240px, 30vh); }
+  .np-cover-wrap { gap: 12px; }
+  .np-title { font-size: 1.2rem; }
+  .np-controls { margin: 8px 0 2px; }
+  .np-lyrics { height: min(46vh, 360px); }
+  #npQueuePane { max-height: min(46vh, 340px); }
+}
+
+/* 横屏/沉浸：左栏允许滚动兜底，任何高度都能点到播放控制 */
+body.np-landscape .np-cover-wrap,
+body.immersive .np-cover-wrap {
+  overflow-y: auto;
+  max-height: calc(100dvh - 32px);
+  padding-right: 6px;
+}
+body.np-landscape #npQueuePane { max-height: calc(100dvh - 150px); }
+
+/* 堆叠布局（≤1100px）：右侧栏保持与歌词区一致的高度，切 Tab 不再让整页跳动 */
+@media (max-width: 1100px) {
+  .np-side { min-height: calc(min(46vh, 360px) + 44px); }
+  #npQueuePane { max-height: min(46vh, 360px); }
+}
+
+/* 矮窗口 + 堆叠布局：收紧封面区，保证「歌词/队列」Tab 不用滚动就能看到 */
+@media (max-width: 1100px) and (max-height: 760px) {
+  .np-page { gap: 16px; padding-top: 2px; }
+  .np-cover { width: min(180px, 23vh); }
+  .np-cover-wrap { gap: 8px; }
+  .np-title { font-size: 1.08rem; }
+  .np-badge-row { margin-top: 6px; }
+  .np-modes { margin-top: 4px; }
+  .np-controls { margin: 4px 0 0; }
+  .np-spec { height: 26px; margin-top: 0; }
+  .np-side { min-height: calc(min(56vh, 400px) + 44px); }
+  #npQueuePane { max-height: min(56vh, 400px); }
+  .social-tabs { margin-bottom: 10px; }
+}

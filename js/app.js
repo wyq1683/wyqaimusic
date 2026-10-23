@@ -83,7 +83,7 @@
         window.App.UI.updateSocialBadge();
       });
     }
-    console.log("%c Wave 2.0 %c 音乐播放器已就绪 ", "background:#7c5cff;color:#fff;border-radius:4px 0 0 4px;padding:2px 6px", "background:#222;color:#aaa;padding:2px 6px;border-radius:0 4px 4px 0");
+    console.log("%c Wave 2.1 %c 音乐播放器已就绪 ", "background:#7c5cff;color:#fff;border-radius:4px 0 0 4px;padding:2px 6px", "background:#222;color:#aaa;padding:2px 6px;border-radius:0 4px 4px 0");
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);

@@ -707,3 +707,50 @@ body.immersive .queue-scrim { left: 0; bottom: 0; }
 @media (max-width: 768px) {
   .queue-scrim { left: 0; }
 }
+
+/* ============================================================
+   BUGFIX 补丁 v1.2（2026-10-23）
+   修复：手机抽屉侧栏 / 桌面侧栏的底部内容（用户卡、技术支持署名、
+   法律链接）被底部固定播放条遮挡或顶出可见区。
+   成因：①侧栏内容自然高度（约 790px）超过抽屉可用高度，溢出部分
+     被 z-index 更高的播放条盖住；②桌面端侧栏是 100dvh 网格项，
+     底部内容直接排在固定播放条（--player-h）后面，从未让位
+     （主区早有 padding-bottom，侧栏漏了）。
+   修法：A 导航区改为独立滚动区——空间不足时内部滚动，底部信息固定可见；
+     B 桌面端侧栏内容区为播放条让出 --player-h；
+     C 移动端微压缩各区块间距，常见手机高度下无需滚动即可完整展示。
+   ============================================================ */
+
+/* A. 导航区独立滚动：装不下时内部滚动，不再把底部用户卡顶到播放条下面 */
+.nav{min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:var(--color-border-strong) transparent}
+.nav::-webkit-scrollbar{width:5px}
+.nav::-webkit-scrollbar-thumb{background:var(--color-border-strong);border-radius:99px}
+.nav::-webkit-scrollbar-track{background:transparent}
+
+/* B. 桌面/平板（>768px）：侧栏内容区为固定播放条让位（与主区一致）；
+   并补 min-height:0——否则 grid-template-rows:1fr（即 minmax(auto,1fr)）
+   的行高会被侧栏内容顶高，矮窗口下侧栏高过视口，底部仍会滑到播放条下面
+   （主区早有 min-height:0，侧栏漏了） */
+@media (min-width:769px){
+  .sidebar{min-height:0;padding-bottom:var(--player-h)}
+  body.rail-mini .sidebar{padding-bottom:var(--player-h)}
+}
+
+/* B-2. 桌面三列（>1180px）：播放工作台同为 100dvh 网格项，内容区一并让位
+   （≤1180px 时工作台是 bottom:var(--player-h) 的浮层，盒子已排除播放条） */
+@media (min-width:1181px){
+  .workbench{padding-bottom:var(--player-h)}
+}
+
+/* C. 手机抽屉（≤768px）：压缩区块间距 + 溢出保险，用户卡固定可见 */
+@media (max-width:768px){
+  .sidebar{overflow:hidden;padding:16px 8px 12px}
+  .nav{gap:2px}
+  .nav-item{padding:7px 12px;line-height:1.3}
+  .nav-group-label{padding:8px 12px 3px}
+  .brand{margin-bottom:14px}
+  .download-app{margin-top:10px}
+  .sidebar-foot{margin-top:0;padding-top:10px}
+  .powered-by{margin-top:8px}
+  .legal-links{padding:6px 8px 2px}
+}

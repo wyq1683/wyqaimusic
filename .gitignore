@@ -56,3 +56,7 @@ test-batch2.js
 test-np.html
 test-real.html
 项目指令*.md
+
+# ===== 发布材料与运维脚本 =====
+release-notes*.md
+publish-release.py

@@ -16,6 +16,7 @@
 
   const C = global.App.Core;
   const K = "mp_v1_wallpaper";
+  const CFG_V = 2;   // 2: 暗化默认值从 25 改为 0
   const VIDEO_EXT = /\.(mp4|webm|ogv|m4v)$/i;
   const MAX_DEPTH = 3; // Steam/steamapps/workshop/content/431960/<id>/ 需要 2 层
 
@@ -36,7 +37,7 @@
   const DEFAULTS = {
     mode: "off",        // off | dynamic | static
     fit: "cover",       // cover | contain | fill
-    dim: 25,            // 壁纸暗化 %
+    dim: 0,             // 壁纸暗化 %（默认不压暗：亮度交给自适应玻璃处理）
     opacity: 100,       // 壁纸不透明度 %
     blur: 0,            // 壁纸模糊 px
     pauseHidden: true,  // 窗口隐藏时暂停
@@ -60,7 +61,17 @@
   function loadCfg() {
     try {
       const raw = localStorage.getItem(K);
-      if (raw) cfg = Object.assign({}, DEFAULTS, JSON.parse(raw) || {});
+      if (raw) {
+        const saved = JSON.parse(raw) || {};
+        cfg = Object.assign({}, DEFAULTS, saved);
+        // 老版本默认给 25% 压暗，升级后不该继续把用户的壁纸压灰。
+        // 只迁移一次：之后用户自己手动调过的值不会被覆盖。
+        if ((saved.v || 1) < CFG_V) {
+          if (saved.dim === undefined || saved.dim === 25) cfg.dim = 0;
+          cfg.v = CFG_V;
+          persist();
+        }
+      }
     } catch (e) { /* 忽略坏数据 */ }
     return cfg;
   }
@@ -175,6 +186,8 @@
     if (!active) {
       // 关掉壁纸 / 列表被筛空时别让视频在后台空转
       try { video.pause(); } catch (e) { /* ignore */ }
+      // 玻璃深浅退回按静态背景算，否则会一直停在最后那帧壁纸的亮度上
+      if (global.App.Glass) global.App.Glass.stopVideo();
     } else if (cfg.mode === "static") {
       try { video.pause(); } catch (e) { /* ignore */ }
     } else if (cfg.mode === "dynamic" && !document.hidden) {
@@ -184,6 +197,7 @@
   }
 
   function clearVideo() {
+    if (global.App.Glass) global.App.Glass.stopVideo();
     const el = ensureEls();
     if (!el) return;
     try {
@@ -350,6 +364,8 @@
       if (!el) { loading = false; return; }
       el.video.src = curUrl;
       el.video.loop = !cfg.autoRotate || playList.length <= 1;
+      // 每张壁纸亮度不同，换一张要重新采样，玻璃深浅跟着变
+      if (global.App.Glass) global.App.Glass.watchVideo(el.video);
       if (cfg.mode === "dynamic" && !(cfg.pauseHidden && document.hidden)) {
         try { const p = el.video.play(); if (p && p.catch) p.catch(() => {}); } catch (e) { /* ignore */ }
       }

@@ -1346,8 +1346,8 @@
     html += '<div class="look-block"><div class="look-label">适配方式</div>' +
       seg("fit", c.fit || "cover", [{ v: "cover", t: "满屏裁剪" }, { v: "contain", t: "完整缩放" }, { v: "fill", t: "拉伸铺满" }], false) +
       "</div>";
-    html += '<div class="look-block"><div class="look-label">壁纸暗化<span class="look-val" data-wpv="dim">' + (c.dim ?? 25) + "%</span></div>" +
-      '<input type="range" class="range" data-wpr="dim" min="0" max="100" value="' + (c.dim ?? 25) + '" aria-label="壁纸暗化" /></div>';
+    html += '<div class="look-block"><div class="look-label">壁纸暗化<span class="look-val" data-wpv="dim">' + (c.dim ?? 0) + "%</span></div>" +
+      '<input type="range" class="range" data-wpr="dim" min="0" max="100" value="' + (c.dim ?? 0) + '" aria-label="壁纸暗化" /></div>';
     html += '<div class="look-block"><div class="look-label">壁纸不透明度<span class="look-val" data-wpv="opacity">' + (c.opacity ?? 100) + "%</span></div>" +
       '<input type="range" class="range" data-wpr="opacity" min="10" max="100" value="' + (c.opacity ?? 100) + '" aria-label="壁纸不透明度" /></div>';
     html += '<div class="look-block"><div class="look-label">壁纸模糊<span class="look-val" data-wpv="blur">' + (c.blur ?? 0) + "px</span></div>" +
@@ -1365,7 +1365,8 @@
       (st.dirs.length ? '<button class="btn btn-ghost" data-wpact="rescan" style="height:32px">重新扫描</button>' : "") +
       (st.dirs.length ? '<button class="btn btn-danger" data-wpact="clear" style="height:32px">清除</button>' : "") +
       "</div>";
-    html += '<div class="wp-hint">' + C.icon("sparkle", 12) + " 选择存放 mp4 / webm 的目录；也可以直接选 Wallpaper Engine 的壁纸库目录（Steam → steamapps → workshop → content → 431960），会自动读取每个子目录 project.json 里的标题与分级。" +
+    html += '<div class="wp-hint">' + C.icon("sparkle", 12) + " 壁纸默认不压暗：界面玻璃会随画面亮度自己变实或变透，亮的地方玻璃更实、暗的地方更透。只有画面亮到影响看字时才会补一点遮罩，也可以手动加「壁纸暗化」。" +
+      "<br>选目录时可以直接选 Wallpaper Engine 的壁纸库（Steam → steamapps → workshop → content → 431960），会自动读取每个子目录 project.json 里的标题与分级。" +
       "<br>场景壁纸（scene.pkg）与网页壁纸需要 Wallpaper Engine 自身的渲染器，浏览器无法加载，请改用视频壁纸。" +
       "<br>浏览器安全限制：每次重新打开页面需要点一次目录授权，无法像桌面客户端那样记住。" +
       "</div>";

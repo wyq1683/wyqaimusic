@@ -76,6 +76,8 @@
     window.App.UI.init();
     window.App.Router.init();
     initStars();
+    // 自适应玻璃：按背景亮度决定玻璃深浅（必须在壁纸之前，壁纸会接管采样）
+    if (window.App.Glass) window.App.Glass.init();
     // 本地壁纸（视频目录）：恢复上次授权的目录句柄
     if (window.App.Wallpaper) window.App.Wallpaper.init();
     // 登录状态下拉取云端数据

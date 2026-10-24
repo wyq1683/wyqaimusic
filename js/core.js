@@ -596,21 +596,15 @@
     document.body.classList.toggle("ui-clear", s.uiStyle === "clear");
     if (s.accent) setAccent(s.accent);
     else if (global.App.Player && global.App.Player.current) applySongAccent(global.App.Player.current.song);
-    // 图片类背景（桌面/移动/自定义）亮度不可控，压暗层要按「最坏情况」兜底，
-    // 否则正文直接坐在亮图上，次级文字对比会掉到 2:1。渐变背景不需要这么重。
+    // 图片类背景（桌面/移动/自定义）识别出来打标，CSS 靠 body.bg-photo 走自适应玻璃
     const isPhoto = s.bgPreset === "desktop" || s.bgPreset === "mobile" || (s.bgPreset === "custom" && !!s.bgImage);
-    // 图片背景要额外把卡片底色变实（CSS 里 body.bg-photo 一套令牌），否则白字糊在亮图上
     document.body.classList.toggle("bg-photo", isPhoto);
-    const topA = isPhoto ? 0.62 : s.bgBlur / 90;
-    const botA = isPhoto ? 0.74 : 0.3 + s.glass / 160;
+    // 遮罩强度不再写死：由背景亮度算（--ad-veil-a，js/glass.js 写入）。
+    // 背景暗时几乎是 0 —— 这是「不压暗壁纸」的关键，遮罩只在真的亮到看不清时才出现。
+    const veilA = "var(--ad-veil-a, 0.06)";
+    const rgb = s.theme === "light" ? "238 240 247" : "5 6 12";
     document.querySelector(".bg-veil").style.background =
-      "linear-gradient(180deg, rgba(5,6,12," + topA.toFixed(3) + "), rgba(5,6,12," + botA.toFixed(3) + "))";
-    if (s.theme === "light") {
-      const lTop = isPhoto ? 0.64 : s.bgBlur / 120;
-      const lBot = isPhoto ? 0.76 : 0.35 + s.glass / 200;
-      document.querySelector(".bg-veil").style.background =
-        "linear-gradient(180deg, rgba(238,240,247," + lTop.toFixed(3) + "), rgba(238,240,247," + lBot.toFixed(3) + "))";
-    }
+      "linear-gradient(180deg, rgb(" + rgb + " / " + veilA + "), rgb(" + rgb + " / calc(" + veilA + " + 0.06)))";
     // 主题切换后按新主题重算派生强调色（inline 变量优先级高于 body[data-theme] 静态规则）
     if (s.accent) setAccent(s.accent);
     else {
@@ -682,6 +676,8 @@
       hideImage();
       document.body.style.background = "";
     }
+    // 背景换了，玻璃深浅要跟着重算（图片会真去采像素，渐变按色值算）
+    if (global.App.Glass) global.App.Glass.refresh(true);
   }
 
   // 图片压缩：长边 ≤1600，JPEG 0.82，避免 localStorage 超限

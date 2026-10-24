@@ -1871,14 +1871,16 @@ textarea.field-input { height: auto; padding: 10px 13px; resize: vertical; }
     z-index: 60;
   }
   body.sb-open .sidebar { transform: translateX(0); }
-  body.sb-open::after {
-    content: "";
+  /* 打开侧栏时把 shell 提到 tabbar(38) 之上，遮罩才能同时盖住底栏 */
+  body.sb-open .shell { z-index: 50; }
+  .sb-scrim {
     position: fixed;
     inset: 0;
+    z-index: 55; /* 低于 .sidebar(60)，高于内容 */
     background: rgba(3, 4, 9, 0.5);
-    z-index: 55;
     animation: fade-in var(--dur-2);
   }
+  body.sb-open .sb-scrim { display: block; }
   body.sb-mini .sidebar { width: var(--sidebar-w); }
   body.sb-mini .sb-name, body.sb-mini .sb-collapse,
   body.sb-mini .sb-nav .nav-label, body.sb-mini .sb-playlists,
@@ -2135,3 +2137,6 @@ body.np-landscape #npQueuePane { max-height: calc(100dvh - 150px); }
   #npQueuePane { max-height: min(56vh, 400px); }
   .social-tabs { margin-bottom: 10px; }
 }
+
+/* 侧栏遮罩默认不渲染（仅移动端打开时显示） */
+.sb-scrim { display: none; }

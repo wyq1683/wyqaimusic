@@ -1077,13 +1077,17 @@
       syncSbLabel();
     });
     // 移动端菜单
+    const closeSidebar = () => {
+      document.body.classList.remove("sb-open");
+      $("#navToggle").setAttribute("aria-expanded", "false");
+    };
     $("#navToggle").addEventListener("click", () => {
       document.body.classList.toggle("sb-open");
       $("#navToggle").setAttribute("aria-expanded", document.body.classList.contains("sb-open"));
     });
     document.addEventListener("click", (e) => {
       if (document.body.classList.contains("sb-open") && !e.target.closest(".sidebar") && !e.target.closest("#navToggle")) {
-        document.body.classList.remove("sb-open");
+        closeSidebar();
       }
     });
     // 主题图标随设置同步（顶栏按钮 / 设置页按钮 / 首屏恢复都走这里）
@@ -1130,9 +1134,11 @@
       if (e.key === "Escape") {
         closeMenu();
         closePalette();
-        closeModal();
+        // 只关最上层：有弹窗先关弹窗，否则再收抽屉/侧栏
+        if (activeModal) { closeModal(); return; }
         const dw = $("#drawer");
         if (dw && !dw.hidden) toggleDrawer();
+        if (document.body.classList.contains("sb-open")) closeSidebar();
       }
       const tag = (e.target.tagName || "").toLowerCase();
       if (tag === "input" || tag === "textarea" || tag === "select" || e.target.isContentEditable) return;

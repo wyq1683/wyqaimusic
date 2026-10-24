@@ -17,6 +17,8 @@
   }
 
   function fmtDur(sec) {
+    // duration 可能是 Infinity（流式/未加载完）或 NaN，直接算会显示 "Infinity:NaN"
+    if (!isFinite(sec) || sec < 0) return "--:--";
     sec = Math.floor(sec || 0);
     const m = Math.floor(sec / 60);
     const s = sec % 60;
@@ -60,6 +62,25 @@
   function icon(name, size) {
     return '<svg width="' + (size || 18) + '" height="' + (size || 18) +
       '" aria-hidden="true"><use href="#i-' + name + '"/></svg>';
+  }
+
+  // 显示/隐藏图标：SVG 元素不会像 HTMLElement 那样反射 .hidden 属性，
+  // 直接写 el.hidden = true 只是加了个 JS 属性，svg[hidden] 选择器不生效，图标永远不切换。
+  function showIcon(svgEl, on) {
+    if (!svgEl) return;
+    if (on) svgEl.removeAttribute("hidden");
+    else svgEl.setAttribute("hidden", "");
+  }
+
+  // 把某一行滚到滚动容器的视觉中心。
+  // 不能用 line.offsetTop：offsetParent 往往是更外层的定位元素（或 body），
+  // 量到的是相对整页的偏移，再减 clientHeight/2 会滚过头，高亮行被顶出可视区。
+  function centerInScroll(box, line, smooth) {
+    if (!box || !line || !box.contains(line)) return;
+    const offset = line.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop;
+    const top = Math.max(0, offset - box.clientHeight / 2 + line.offsetHeight / 2);
+    if (smooth === false) box.scrollTop = top;
+    else box.scrollTo({ top, behavior: "smooth" });
   }
 
   function hashCode(str) {
@@ -715,7 +736,7 @@
   /* ==================== 导出 ==================== */
   global.App = global.App || {};
   global.App.Core = {
-    $, $$, el, fmtDur, fmtTime, fmtNum, esc, debounce, icon, gradientFor, applyBgPreset, BG_GRADIENTS, compressImage,
+    $, $$, el, fmtDur, fmtTime, fmtNum, esc, debounce, icon, showIcon, centerInScroll, gradientFor, applyBgPreset, BG_GRADIENTS, compressImage,
     bus, read, write,
     K, PREFIX,
     getToken, setToken, useApi, api, apiGet,

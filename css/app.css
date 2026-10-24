@@ -311,6 +311,8 @@ body.sb-mini .sb-nav .nav-item { justify-content: center; }
 .icon-btn:hover { color: var(--text-1); background: var(--glass-card-hover); }
 .icon-btn:active { transform: scale(0.92); }
 .icon-btn[aria-pressed="true"] { color: var(--accent-text); background: var(--accent-soft); }
+/* 循环关闭：图标压暗，和「列表循环」区分开（两者共用同一个图标） */
+.icon-btn.off { opacity: 0.45; }
 
 .topbar-user {
   width: 34px; height: 34px;

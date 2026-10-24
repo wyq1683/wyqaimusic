@@ -610,12 +610,23 @@
     $("#btnRepeat").addEventListener("click", () => {
       const mode = P.cycleRepeat();
       const btn = $("#btnRepeat");
-      btn.querySelector(".ic-repeat").hidden = mode !== "all";
-      btn.querySelector(".ic-repeat-one").hidden = mode !== "one";
-      btn.setAttribute("aria-pressed", mode !== "all");
+      // 普通循环图标用于 all / none 两种状态（none 时整体压暗），单曲循环才换成带 1 的图标
+      C.showIcon(btn.querySelector(".ic-repeat"), mode !== "one");
+      C.showIcon(btn.querySelector(".ic-repeat-one"), mode === "one");
+      btn.classList.toggle("off", mode === "off");
+      btn.setAttribute("aria-pressed", mode !== "off");
       btn.title = mode === "all" ? "列表循环" : mode === "one" ? "单曲循环" : "不循环";
       toast(mode === "all" ? "列表循环" : mode === "one" ? "单曲循环" : "循环已关");
     });
+    // 初始化时同步一次图标（刷新后状态可能与 HTML 默认值不同）
+    (function syncRepeatIcon() {
+      const mode = P.state.repeat || "all";
+      const btn = $("#btnRepeat");
+      C.showIcon(btn.querySelector(".ic-repeat"), mode !== "one");
+      C.showIcon(btn.querySelector(".ic-repeat-one"), mode === "one");
+      btn.classList.toggle("off", mode === "off");
+      btn.setAttribute("aria-pressed", mode !== "off");
+    })();
 
     // 进度条
     const seek = $("#seek");
@@ -709,8 +720,9 @@
       renderQueuePane();
     });
     bus.on("player:state", (playing) => {
-      $("#btnPlay").querySelector(".ic-play").hidden = playing;
-      $("#btnPlay").querySelector(".ic-pause").hidden = !playing;
+      const bp = $("#btnPlay");
+      C.showIcon(bp.querySelector(".ic-play"), !playing);
+      C.showIcon(bp.querySelector(".ic-pause"), playing);
       $("#btnPlay").classList.toggle("playing", playing);
       $("#btnPlay").setAttribute("aria-label", playing ? "暂停" : "播放");
     });
@@ -955,7 +967,7 @@
       if (on !== l.classList.contains("active")) {
         l.classList.toggle("active", on);
         // 只滚歌词容器（scrollIntoView 会连带把页面滚走）
-        if (on && box) box.scrollTo({ top: l.offsetTop - box.clientHeight / 2 + l.offsetHeight / 2, behavior: "smooth" });
+        if (on) C.centerInScroll(box, l);
       }
     });
   });

@@ -991,6 +991,17 @@
         '<div class="np-lyrics" id="npLyricScroll">' +
         lyrics.map((l, i) => '<div class="lyric-line" data-li="' + i + '">' + l.text + "</div>").join("") +
         "</div>";
+      // 重新渲染后立刻对齐当前播放进度：否则要等下一次 lyricline 事件才高亮，
+      // 中途进入页面 / 切歌时会看到歌词停在中间不动。
+      const box = $("#npLyricScroll", el);
+      const idx = P().state.lyricIndex;
+      if (box && idx >= 0) {
+        const line = $$(".lyric-line", box)[idx];
+        if (line) {
+          line.classList.add("active");
+          C.centerInScroll(box, line, false); // 首帧直接定位，不做平滑滚动
+        }
+      }
     }
     function renderQueue() {
       const pane = $("#npQueuePane", el);
@@ -1037,6 +1048,13 @@
         $("#npLyricPane", el).hidden = npTab !== "lyric";
         $("#npQueuePane", el).hidden = npTab !== "queue";
         if (npTab === "queue") renderQueue();
+        if (npTab === "lyric") {
+          // 回到歌词 Tab：隐藏期间容器没有布局，滚动量算不出来，这里重新对齐当前行
+          const box = $("#npLyricScroll", el);
+          const idx = P().state.lyricIndex;
+          const line = box && idx >= 0 ? $$(".lyric-line", box)[idx] : null;
+          if (line) C.centerInScroll(box, line, false);
+        }
         requestAnimationFrame(() => {
           if (view) view.scrollTop = keepTop;
           fitQueueHeight();
@@ -1071,8 +1089,8 @@
     npSeek.addEventListener("pointerup", npSeekCommit);
     const onNpState = (playing) => {
       const b = $("#npPlay", el);
-      b.querySelector(".ic-play").hidden = playing;
-      b.querySelector(".ic-pause").hidden = !playing;
+      C.showIcon(b.querySelector(".ic-play"), !playing);
+      C.showIcon(b.querySelector(".ic-pause"), playing);
       b.classList.toggle("playing", playing);
       b.setAttribute("aria-label", playing ? "暂停" : "播放");
     };
@@ -1187,12 +1205,13 @@
         if (on !== l.classList.contains("active")) {
           l.classList.toggle("active", on);
           // 只滚歌词容器，不能用 scrollIntoView（它会连带滚动 #view，把整页拉走）
-          if (on && box) box.scrollTo({ top: l.offsetTop - box.clientHeight / 2 + l.offsetHeight / 2, behavior: "smooth" });
+          if (on) C.centerInScroll(box, l);
         }
       });
     };
     bus.on("player:lyricline", onLyricLine);
-    bus.on("player:lyric", () => { if (!$("#npLyricScroll", el)) renderLyric(); });
+    // 歌词到达/清空后总是重绘一次，顺带对齐当前进度（只在有容器时重绘会残留上一首的歌词）
+    bus.on("player:lyric", () => renderLyric());
     bus.on("player:queue", () => {
       const tab = $("[data-nptab='queue']", el);
       if (tab) tab.innerHTML = "队列 " + P().queueList().length;

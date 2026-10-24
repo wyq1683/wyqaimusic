@@ -139,6 +139,24 @@
     return full;
   }
 
+  /* 批量注册：导入歌单一次可能上千首，逐首写盘会卡死主线程。
+     这里一次写完，最后一次落盘。 */
+  function registerMany(songs) {
+    restoringExternal = true;
+    const out = [];
+    (songs || []).forEach((song) => { const f = registerExternal(song); if (f) out.push(f); });
+    restoringExternal = false;
+    try {
+      const map = readExternalMap();
+      const keys = Object.keys(map);
+      if (keys.length > EXTERNAL_CAP) {
+        keys.slice(0, keys.length - EXTERNAL_CAP).forEach((k) => delete map[k]);
+      }
+      localStorage.setItem(K_EXTERNAL, JSON.stringify(map));
+    } catch (e) { /* 忽略配额错误 */ }
+    return out;
+  }
+
   function restoreExternal() {
     restoringExternal = true;
     const map = readExternalMap();
@@ -200,7 +218,7 @@
     GENRES, MOODS, MOOD_LABEL, GENRE_EMOJI, SONGS, BY_ID, EXTERNAL,
     AUDIO_MODE,
     get: (id) => BY_ID[id],
-    registerExternal,
+    registerExternal, registerMany,
     getArtist, getAlbum,
     getExternalMap: readExternalMap,
     setExternalMap,

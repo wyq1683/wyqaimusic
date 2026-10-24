@@ -41,6 +41,7 @@
     { pattern: "/album/:name", title: "专辑", back: true },
     { pattern: "/now-playing", title: "正在播放", full: true },
     { pattern: "/settings", title: "设置" },
+    { pattern: "/import", title: "音乐库导入", back: true },
   ];
 
   function matchRoute(path) {

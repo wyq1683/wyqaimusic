@@ -778,6 +778,229 @@
   }
 
   /* ==================== 我的 ==================== */
+  /* ==================== 音乐库导入 / 同步 ====================
+     免登录：网易云的「用户歌单列表」与「歌单详情」本身就是公开接口，
+     只要知道 UID 或歌单 ID 就能读。所以这里不要求用户给账号密码。 */
+  const IMPORTS_KEY = "mp_v1_ncimport";
+
+  function readImports() {
+    try { return JSON.parse(localStorage.getItem(IMPORTS_KEY) || "null") || { uid: 0, nickname: "", bound: [] }; }
+    catch (e) { return { uid: 0, nickname: "", bound: [] }; }
+  }
+  function writeImports(v) {
+    try { localStorage.setItem(IMPORTS_KEY, JSON.stringify(v)); } catch (e) { /* 配额 */ }
+  }
+
+  // 从粘贴内容里解析出 uid 或歌单 id
+  function parseNeteaseInput(raw) {
+    const t = (raw || "").trim();
+    if (!t) return null;
+    const host = /(?:https?:\/\/)?(?:www\.)?music\.163\.com/i.test(t);
+    if (host) {
+      const uid = /[?&#]id=(\d+)/.exec(t);
+      const isUser = /\/(?:user\/home|#\/user)/i.test(t);
+      if (!uid) return null;
+      return isUser ? { kind: "user", id: uid[1] } : { kind: "playlist", id: uid[1] };
+    }
+    if (/^\d+$/.test(t)) return { kind: "user", id: t, ambiguous: true };
+    return null;
+  }
+
+  function importMusic() {
+    const st = readImports();
+    const el = page(
+      '<div class="sec"><div class="sec-head"><div class="sec-title">音乐库导入</div>' +
+      '<div class="sec-sub">免登录 · 按 UID 或歌单链接同步</div></div>' +
+      '<div class="set-card">' +
+      '<div class="set-row" style="display:block">' +
+      '<div class="imp-input">' + C.icon("link", 15) +
+      '<input id="impInput" placeholder="粘贴网易云 UID、个人主页链接或歌单链接" value="' +
+      C.esc(st.uid ? String(st.uid) : "") + '" autocomplete="off" />' +
+      '<button class="btn btn-primary" id="impRead" style="height:34px">读取</button></div>' +
+      '<div class="imp-hint">个人主页链接形如 https://music.163.com/#/user/home?id=123456 —— 那个 id 就是 UID。' +
+      '歌单链接里 <code>id=</code> 后面的是歌单 ID。两种方式都不需要登录，也不需要你的密码。</div>' +
+      "</div></div></div>" +
+      '<div id="impBody"></div>'
+    );
+
+    const body = $("#impBody", el);
+    const input = $("#impInput", el);
+    let pending = [];   // 读取到的歌单
+    let mode = null;    // user | playlist
+
+    function renderEmpty() {
+      const b = st.bound || [];
+      if (!b.length) {
+        body.innerHTML = UI().emptyState("playlist", "还没有绑定任何歌单", "在上面粘贴 UID 或歌单链接，点「读取」");
+        return;
+      }
+      let h = '<div class="set-card"><div class="set-row" style="display:block">';
+      h += '<div class="imp-bound-head">已绑定 · ' + C.esc(st.nickname || ("UID " + st.uid)) +
+        '</div><div class="imp-bound">';
+      b.forEach((x) => {
+        h += '<div class="imp-item"><span class="imp-name">' + C.esc(x.name) + "</span>" +
+          '<span class="imp-meta">' + (x.localId === "__fav__" ? "已导入为收藏" : "已导入为歌单") +
+          " · " + x.count + " 首</span></div>";
+      });
+      h += '</div><div class="imp-actions">' +
+        '<button class="btn btn-ghost" id="impSync" style="height:32px">同步新歌</button>' +
+        '<button class="btn btn-ghost" id="impClear" style="height:32px">解除绑定</button></div>';
+      h += "</div></div>";
+      body.innerHTML = h;
+      $("#impSync", el).addEventListener("click", doSync);
+      $("#impClear", el).addEventListener("click", () => {
+        writeImports({ uid: 0, nickname: "", bound: [] });
+        global.App.Router.refresh();
+      });
+    }
+
+    function renderPick(list, kind) {
+      pending = list;
+      mode = kind;
+      let h = '<div class="set-card"><div class="set-row" style="display:block">';
+      h += '<div class="imp-bound-head">选择要导入的内容</div><div class="imp-pick">';
+      list.forEach((p, i) => {
+        h += '<label class="imp-pick-row"><input type="checkbox" data-pick="' + i + '"' +
+          (p.isFav ? " checked" : "") + " />" +
+          '<span class="imp-name">' + C.esc(p.name) + "</span>" +
+          (p.isFav ? '<span class="imp-tag">收藏</span>' : "") +
+          '<span class="imp-meta">' + p.trackCount + " 首</span></label>";
+      });
+      h += '</div><div class="imp-actions">' +
+        '<button class="btn btn-primary" id="impGo" style="height:34px">导入选中</button>' +
+        '<button class="btn btn-ghost" id="impCancel" style="height:32px">取消</button></div>';
+      h += "</div></div>";
+      body.innerHTML = h;
+      $("#impGo", el).addEventListener("click", doImport);
+      $("#impCancel", el).addEventListener("click", () => { pending = []; renderEmpty(); });
+    }
+
+    async function doFetch() {
+      const parsed = parseNeteaseInput(input.value);
+      if (!parsed) { UI().toast("没能识别，请粘贴 UID 或 music.163.com 的链接", "error"); return; }
+      body.innerHTML = '<div class="loading-box"><span class="spinner"></span>正在读取…</div>';
+      try {
+        if (parsed.kind === "user") {
+          const r = await C.apiGet("netease.php", { action: "user", uid: parsed.id });
+          if (!r.ok || !r.playlists) {
+            body.innerHTML = '<div class="src-note">' + C.esc(r.error || "读取失败") + "</div>" + UI().emptyState("user", "读取不到这个用户", "确认 UID 正确，且该用户主页不是隐私的");
+            return;
+          }
+          st.uid = parseInt(parsed.id, 10);
+          st.nickname = r.nickname || "";
+          writeImports(st);
+          renderPick(r.playlists, "user");
+        } else {
+          const r = await C.apiGet("netease.php", { action: "playlist", id: parsed.id });
+          if (!r.ok || !r.data) {
+            body.innerHTML = '<div class="src-note">' + C.esc(r.error || "读取失败") + "</div>" + UI().emptyState("playlist", "读取不到这个歌单", "确认链接里的 id，且歌单不是隐私的");
+            return;
+          }
+          renderPick([{ id: r.id, name: r.name, trackCount: r.trackCount, isFav: false }], "playlist");
+        }
+      } catch (e) {
+        UI().toast("网络错误，稍后再试", "error");
+        renderEmpty();
+      }
+    }
+
+    async function runImport(picks, onProgress) {
+      let favAdded = 0;
+      const bound = (st.bound || []).slice();
+      for (let i = 0; i < picks.length; i++) {
+        const p = picks[i];
+        if (onProgress) onProgress(i + 1, picks.length, p.name);
+        const r = await C.apiGet("netease.php", { action: "playlist", id: p.id });
+        if (!r.ok || !r.data) continue;
+        const songs = D.registerMany(r.data);
+        const ids = songs.map((x) => x.id);
+        let localId;
+        if (p.isFav) {
+          // 「xxx喜欢的音乐」= 网易的收藏，导入成站内收藏
+          favAdded += C.addFavorites(ids);
+          localId = "__fav__";
+        } else {
+          let exist = bound.find((b) => b.remoteId === p.id && b.localId !== "__fav__");
+          if (exist && global.App.Core.getPlaylists().some((pl) => pl.id === exist.localId)) {
+            // 已导入过：增量补新歌，不重复建歌单
+            const cur = global.App.Core.getPlaylists().find((pl) => pl.id === exist.localId);
+            const have = new Set(cur.songIds || []);
+            const fresh = ids.filter((id) => !have.has(id));
+            if (fresh.length) {
+              const d = global.App.Core.getUserData();
+              const t = d.playlists.find((pl) => pl.id === exist.localId);
+              if (t) { t.songIds = fresh.concat(t.songIds); global.App.Core.saveUserData(global.App.Core.currentUser(), d); }
+            }
+            exist.count = ids.length;
+            localId = exist.localId;
+          } else {
+            const pl = C.importPlaylist(p.name, ids);
+            if (!pl) { UI().toast("请先登录再导入歌单", "error"); return { favAdded: 0, bound: bound }; }
+            localId = pl.id;
+          }
+        }
+        const rec = { remoteId: p.id, name: p.name, localId: localId, count: ids.length };
+        const idx = bound.findIndex((b) => b.remoteId === p.id);
+        if (idx >= 0) bound[idx] = rec; else bound.push(rec);
+      }
+      st.bound = bound;
+      writeImports(st);
+      return { favAdded: favAdded, bound: bound };
+    }
+
+    async function doImport() {
+      const picks = [];
+      $$("[data-pick]", el).forEach((b) => { if (b.checked) picks.push(pending[+b.dataset.pick]); });
+      if (!picks.length) { UI().toast("至少选一个", "error"); return; }
+      body.innerHTML = '<div class="loading-box"><span class="spinner"></span>正在导入…</div>';
+      const res = await runImport(picks, (i, n, name) => {
+        const box = $(".loading-box", body);
+        if (box) box.innerHTML = '<span class="spinner"></span>正在导入 ' + i + "/" + n + "：" + C.esc(name);
+      });
+      UI().toast("已导入 " + picks.length + " 项" + (res.favAdded ? "，收藏新增 " + res.favAdded + " 首" : ""), "success");
+      // 重新读一次绑定状态再渲染
+      const fresh = readImports();
+      st.bound = fresh.bound; st.uid = fresh.uid; st.nickname = fresh.nickname;
+      renderEmpty();
+      UI().renderSidebarPlaylists && UI().renderSidebarPlaylists();
+    }
+
+    async function doSync() {
+      if (!(st.bound || []).length) return;
+      body.innerHTML = '<div class="loading-box"><span class="spinner"></span>正在同步…</div>';
+      let added = 0;
+      const list = st.bound.slice();
+      for (let i = 0; i < list.length; i++) {
+        const b = list[i];
+        const box = $(".loading-box", body);
+        if (box) box.innerHTML = '<span class="spinner"></span>正在同步 ' + (i + 1) + "/" + list.length + "：" + C.esc(b.name);
+        const r = await C.apiGet("netease.php", { action: "playlist", id: b.remoteId });
+        if (!r.ok || !r.data) continue;
+        const ids = D.registerMany(r.data).map((x) => x.id);
+        const cur = C.getUserData();
+        if (b.localId === "__fav__") {
+          added += C.addFavorites(ids);
+        } else {
+          const t = cur.playlists.find((pl) => pl.id === b.localId);
+          if (t) {
+            const have = new Set(t.songIds || []);
+            const fresh = ids.filter((id) => !have.has(id));
+            if (fresh.length) { t.songIds = fresh.concat(t.songIds); C.saveUserData(C.currentUser(), cur); added += fresh.length; }
+          }
+        }
+        b.count = ids.length;
+      }
+      writeImports(st);
+      UI().toast(added ? "新增 " + added + " 首" : "已是最新，没有新歌", added ? "success" : "info");
+      renderEmpty();
+    }
+
+    $("#impRead", el).addEventListener("click", doFetch);
+    input.addEventListener("keydown", (e) => { if (e.key === "Enter") doFetch(); });
+    renderEmpty();
+    return el;
+  }
+
   function profile() {
     if (!C.isLoggedIn()) {
       return page(UI().emptyState("user", "还没有登录", "登录后即可同步收藏、歌单与收听历史", '<button class="btn btn-primary" id="pfLogin">登录 / 注册</button>'));
@@ -1364,6 +1587,11 @@
       '<div class="set-ctrl"><input type="range" class="range" id="stSurface" min="0" max="100" value="' + s.surfaceLevel + '" /><span class="range-val" id="stSurfaceVal">' + s.surfaceLevel + "%</span></div></div>" +
       "</div></div>" +
 
+      '<div class="set-section"><div class="sec-head"><div class="sec-title">音乐库</div><div class="sec-sub">把别处的歌单与收藏同步过来</div></div>' +
+      '<div class="set-card"><div class="set-row"><div class="set-info"><div class="set-name">导入与同步</div>' +
+      '<div class="set-desc">粘贴网易云 UID 或歌单链接即可同步，不需要登录，也不需要密码</div></div>' +
+      '<div class="set-ctrl"><a class="btn btn-ghost" href="#/import" style="height:32px">去导入</a></div></div></div></div>' +
+
       '<div class="set-section"><div class="sec-head"><div class="sec-title">本地壁纸</div><div class="sec-sub">用本地视频目录做动态背景</div></div>' +
       '<div class="set-card"><div class="set-row" style="display:block" id="stWallpaper">' + UI().wallpaperPanelHTML() + "</div></div></div>" +
 
@@ -1569,5 +1797,6 @@
     "/album/:name": album,
     "/now-playing": nowPlaying,
     "/settings": settings,
+    "/import": importMusic,
   };
 })(window);

@@ -31,6 +31,60 @@ function nc_cache_set($key, $data) {
     @file_put_contents($dir . '/nc_' . md5($key) . '.json', json_encode($data, JSON_UNESCAPED_UNICODE));
 }
 
+/**
+ * 直连网易公开接口（免登录）。
+ * 之前依赖的 Vercel 镜像（NeteaseCloudMusicApi 部署）已不可达，
+ * 而 music.163.com 的下面两个接口本身就是公开的、不需要登录态：
+ *   /api/user/playlist/?uid=xxx      用户歌单列表（含"xxx喜欢的音乐"= 收藏）
+ *   /api/v3/playlist/detail?id=xxx   歌单内全部歌曲
+ * 所以歌单与收藏的同步可以在不登录的情况下实现。
+ */
+function nc_raw($url) {
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 15,
+        CURLOPT_CONNECTTIMEOUT => 6,
+        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_SSL_VERIFYHOST => false,
+        CURLOPT_USERAGENT => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        CURLOPT_HTTPHEADER => [
+            'Referer: https://music.163.com/',
+            'Cookie: os=pc; appver=8.9.70',
+            'Accept: application/json, text/plain, */*',
+            'Accept-Language: zh-CN,zh;q=0.9',
+        ],
+    ]);
+    $resp = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    if ($resp === false || $code < 200 || $code >= 300) return null;
+    return json_decode($resp, true);
+}
+
+// v3 接口用的是简写字段：ar=歌手 al=专辑 dt=毫秒 fee=付费标记
+function nc_norm_track($t) {
+    if (!is_array($t) || empty($t['id'])) return null;
+    $artists = [];
+    if (!empty($t['ar']) && is_array($t['ar'])) {
+        foreach ($t['ar'] as $a) { if (!empty($a['name'])) $artists[] = $a['name']; }
+    }
+    $al = is_array($t['al'] ?? null) ? $t['al'] : [];
+    $fee = intval($t['fee'] ?? 0);
+    return [
+        'id' => $t['id'],
+        'title' => $t['name'] ?? '未知曲目',
+        'artist' => $artists ? implode('、', $artists) : '未知歌手',
+        'album' => ($al['name'] ?? '') ?: '网易云音乐',
+        'cover' => $al['picUrl'] ?? '',
+        'duration' => intval(($t['dt'] ?? 0) / 1000),
+        // fee: 0 免费 / 1 VIP 可听 / 4 数字专辑 / 8 无版权
+        'free' => ($fee === 0 || $fee === 1),
+        'vip' => ($fee === 1),
+        'source' => 'netease',
+    ];
+}
+
 // 请求 Vercel 网易云 API（JSON 接口）
 function ncm_get($path) {
     global $NCM_API;
@@ -175,48 +229,61 @@ switch ($action) {
     case 'playlist':
         $id = trim($_GET['id'] ?? '');
         if ($id === '' || !preg_match('/^\d+$/', $id)) respond(['ok' => false, 'error' => '缺少有效歌单 id'], 400);
-        $limit = min(500, max(1, intval($_GET['limit'] ?? 300)));
         rate_limited('ncpl:' . client_ip(), 30, 60);
 
-        $cacheKey = "playlist:{$id}:{$limit}";
-        $cached = nc_cache_get($cacheKey, 3600);
+        $cacheKey = "playlist:{$id}";
+        $cached = nc_cache_get($cacheKey, 1800);
         if ($cached !== null) { respond($cached); }
 
-        $r = ncm_get('/playlist/track/all?id=' . urlencode($id) . '&limit=' . $limit);
-        if (!$r || !isset($r['songs'])) {
-            respond(['ok' => false, 'error' => '歌单加载失败（可能为私密歌单或不存在）'], 502);
-        }
-
-        // 顺带获取歌单名称（失败则用空，前端兜底）
         $name = '';
-        $detail = ncm_get('/playlist/detail?id=' . urlencode($id));
-        if ($detail && isset($detail['playlist']['name'])) {
-            $name = $detail['playlist']['name'];
-        }
+        $raw = null;
 
-        $songs = $r['songs'];
-        $privMap = [];
-        if (isset($r['privileges'])) {
-            foreach ($r['privileges'] as $p) $privMap[$p['id']] = $p;
+        // ① 先走镜像（字段更全）；② 镜像不可达时直连网易公开接口，
+        //    这两个接口本身免登录，所以同步歌单不需要用户账号。
+        $r = ncm_get('/playlist/track/all?id=' . urlencode($id) . '&limit=1000');
+        if ($r && !empty($r['songs'])) {
+            $raw = $r['songs'];
+            $detail = ncm_get('/playlist/detail?id=' . urlencode($id));
+            if ($detail && isset($detail['playlist']['name'])) $name = $detail['playlist']['name'];
         }
+        if (!$raw) {
+            $d = nc_raw('https://music.163.com/api/v3/playlist/detail?id=' . $id . '&n=1000');
+            $pl = ($d && !empty($d['playlist'])) ? $d['playlist'] : null;
+            if ($pl) {
+                $name = $pl['name'] ?? '';
+                $raw = is_array($pl['tracks'] ?? null) ? $pl['tracks'] : [];
+                // 单次上限 1000 首，超出的用 trackIds 分批补齐
+                $total = intval($pl['trackCount'] ?? 0);
+                if ($total > count($raw) && !empty($pl['trackIds']) && is_array($pl['trackIds'])) {
+                    $ids = [];
+                    foreach ($pl['trackIds'] as $ti) { $ids[] = intval(is_array($ti) ? ($ti['id'] ?? 0) : $ti); }
+                    foreach (array_chunk(array_slice($ids, count($raw)), 500) as $chunk) {
+                        $payload = json_encode(array_map(function ($sid) { return ['id' => $sid]; }, $chunk));
+                        // v3/song/detail 必须同时带 c 参数，否则返回"参数错误"
+                        $sd = nc_raw('https://music.163.com/api/v3/song/detail?ids=' . rawurlencode($payload) . '&c=' . rawurlencode($payload));
+                        if (!empty($sd['songs'])) { foreach ($sd['songs'] as $song) { $raw[] = $song; } }
+                    }
+                }
+            }
+        }
+        if (!$raw) respond(['ok' => false, 'error' => '歌单加载失败（可能为私密歌单或不存在）'], 502);
 
         $data = [];
-        foreach ($songs as $t) {
-            $priv = $privMap[$t['id']] ?? null;
-            $data[] = [
-                'id' => $t['id'],
-                'title' => $t['name'] ?? '未知曲目',
-                'artist' => ($t['ar'][0]['name'] ?? '') ?: '未知歌手',
-                'album' => $t['al']['name'] ?? '',
-                'cover' => $t['al']['picUrl'] ?? '',
-                'duration' => intval(($t['dt'] ?? 0) / 1000),
-                'free' => $priv ? ($priv['fee'] === 0) : true,
-                'source' => 'netease',
-            ];
+        foreach ($raw as $t) {
+            $n = nc_norm_track($t);
+            if ($n) $data[] = $n;
         }
         if (empty($data)) respond(['ok' => false, 'error' => '歌单为空'], 502);
 
-        $result = ['ok' => true, 'name' => $name, 'data' => $data];
+        $result = [
+            'ok' => true,
+            'id' => $id,
+            'name' => $name,
+            'trackCount' => count($data),
+            // 网易声明的总数。单次上限 1000 首，超大歌单会少于这个值 —— 如实返回，前端提示
+            'total' => intval($pl['trackCount'] ?? count($data)),
+            'data' => $data,
+        ];
         nc_cache_set($cacheKey, $result);
         respond($result);
 
@@ -282,6 +349,40 @@ switch ($action) {
         // 全部失败：最后兜底到 outer URL（浏览器自己处理）
         header('Location: https://music.163.com/song/media/outer/url?id=' . $id . '.mp3', true, 302);
         exit;
+
+    case 'user':
+        // 免登录读取某个 UID 的全部歌单（含"喜欢的音乐"）
+        $uid = intval($_GET['uid'] ?? 0);
+        if ($uid <= 0) respond(['ok' => false, 'error' => '缺少用户 UID'], 400);
+        rate_limited('ncuser:' . client_ip(), 20, 60);
+
+        $cacheKey = "user:{$uid}";
+        $cached = nc_cache_get($cacheKey, 600);
+        if ($cached !== null) respond($cached);
+
+        $d = nc_raw('https://music.163.com/api/user/playlist/?uid=' . $uid . '&offset=0&limit=1000');
+        $list = (is_array($d) && !empty($d['playlist'])) ? $d['playlist'] : [];
+        if (!$list) {
+            respond(['ok' => false, 'error' => '读取不到歌单：UID 可能不存在，或该用户主页已设为隐私'], 502);
+        }
+
+        $out = [];
+        $nick = '';
+        foreach ($list as $p) {
+            if ($nick === '' && !empty($p['creator']['nickname'])) $nick = $p['creator']['nickname'];
+            $name = $p['name'] ?? '';
+            $out[] = [
+                'id' => $p['id'],
+                'name' => $name,
+                'trackCount' => intval($p['trackCount'] ?? 0),
+                'cover' => $p['coverImgUrl'] ?? '',
+                // 网易的收藏歌单名字固定是「xxx喜欢的音乐」
+                'isFav' => (strpos($name, '喜欢的音乐') !== false),
+            ];
+        }
+        $res = ['ok' => true, 'uid' => $uid, 'nickname' => $nick, 'playlists' => $out];
+        nc_cache_set($cacheKey, $res);
+        respond($res);
 
     default:
         respond(['ok' => false, 'error' => '未知操作'], 400);

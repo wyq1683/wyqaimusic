@@ -447,6 +447,24 @@
     bus.emit("data:changed");
     return fav;
   }
+  /* 批量收藏：导入「我喜欢的音乐」时逐首 toggleFavorite 要写上千次盘 */
+  function addFavorites(songIds) {
+    const u = currentUser();
+    if (!u) return 0;
+    const d = getUserData(u);
+    let added = 0;
+    (songIds || []).forEach((id) => {
+      if (!id || d.favorites.indexOf(id) >= 0) return;
+      d.favorites.push(id);
+      added++;
+    });
+    if (added) {
+      saveUserData(u, d);
+      queueSync();
+      bus.emit("data:changed");
+    }
+    return added;
+  }
   function isFavorite(songId) {
     const u = currentUser();
     if (!u) return false;
@@ -761,7 +779,7 @@
     currentUser, isLoggedIn, getUserData, saveUserData,
     register, login, verifyLogin, logout,
     getProfile, updateProfile, uploadAvatar, getInterests,
-    addHistory, toggleFavorite, isFavorite, getFavorites,
+    addHistory, toggleFavorite, addFavorites, isFavorite, getFavorites,
     createPlaylist, importPlaylist, renamePlaylist, deletePlaylist, addToPlaylist,
     removeFromPlaylist, getPlaylists, getPlaylist,
     getPlays, bumpPlays,

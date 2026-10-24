@@ -54,8 +54,10 @@ function qq_get_json($url, $referer) {
     $ch = curl_init($url);
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => 12,
-        CURLOPT_CONNECTTIMEOUT => 6,
+        // 上游现在对无登录态的服务器端请求返回空结果，失败是常态 ——
+        // 快速失败比让用户盯着「正在搜索」16 秒好
+        CURLOPT_TIMEOUT => 8,
+        CURLOPT_CONNECTTIMEOUT => 4,
         CURLOPT_SSL_VERIFYPEER => false,
         CURLOPT_SSL_VERIFYHOST => false,
         CURLOPT_USERAGENT => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',

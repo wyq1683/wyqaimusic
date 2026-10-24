@@ -866,7 +866,12 @@
       '<div class="look-block"><div class="look-label">界面透明度<span class="look-val" id="lookGlassVal">' + s.glass + "%</span></div>" +
       '<input type="range" class="range" id="lookGlass" min="0" max="100" value="' + s.glass + '" aria-label="界面透明度" /></div>' +
       '<div class="look-block"><div class="look-label">本地壁纸<span class="look-val">' +
-      (wpState().count ? wpState().count + " 个视频" : "未添加") + "</span></div>" +
+      (() => {
+        const w = wpState();
+        if (!w.count) return w.total ? "分级下无可见壁纸" : "未添加";
+        const rl = (global.App.Wallpaper && global.App.Wallpaper.RATING_LABEL) || {};
+        return w.count + " 个 · " + (rl[w.cfg.rating] || "大众级");
+      })() + "</span></div>" +
       '<div class="wp-actions"><button class="btn btn-ghost" data-lookwp="add" style="height:32px">' + C.icon("plus", 13) + " 添加壁纸目录</button>" +
       '<button class="btn btn-ghost" data-lookwp="settings" style="height:32px">全部设置</button></div></div>' +
       '<div class="look-tip">' + C.icon("sparkle", 13) + " 正在播放页支持全屏沉浸与横屏模式</div>";
@@ -1266,20 +1271,28 @@
   function wallpaperPanelHTML() {
     const st = wpState();
     const c = st.cfg || {};
+    const W = global.App.Wallpaper;
+    const RL = (W && W.RATING_LABEL) || { everyone: "大众级", questionable: "家长指导", mature: "成人" };
     const mode = c.mode || "off";
     const on = mode !== "off" && st.count > 0;
+    const rating = c.rating || "everyone";
+    const autoRotate = c.autoRotate !== false;
     const seg = (k, cur, opts, disabled) =>
       '<div class="wp-seg" data-seg="' + k + '">' +
       opts.map((o) => '<button type="button" data-wp="' + k + ":" + o.v + '"' +
         (cur === o.v ? ' class="active"' : "") + (disabled ? " disabled" : "") + ">" + o.t + "</button>").join("") +
       "</div>";
 
-    let html = '<div class="wp-status' + (on ? " on" : "") + '"><span class="wp-dot"></span><span>' +
+    const statusText =
       (st.supported ? "" : "当前浏览器不支持目录访问（需 Chrome / Edge 86+）") +
       (st.supported && st.scanning ? "正在扫描目录…" : "") +
-      (st.supported && !st.scanning && st.count ? "已连接 · 识别到 " + st.count + " 个视频壁纸" + (st.current ? " · 当前：" + esc(st.current) : "") : "") +
+      (st.supported && !st.scanning && st.count ? "已连接 · 可见 " + st.count + " 个壁纸" + (st.hidden ? "（已按分级筛掉 " + st.hidden + " 个）" : "") : "") +
+      (st.supported && !st.scanning && !st.count && !st.error && st.dirs.length ? "目录里没有当前分级下可显示的壁纸" : "") +
       (st.supported && !st.scanning && !st.count && !st.error && !st.dirs.length ? "尚未添加目录" : "") +
-      (st.error ? esc(st.error) : "") +
+      (st.error ? esc(st.error) : "");
+
+    let html = '<div class="wp-status' + (on ? " on" : "") + '"><span class="wp-dot"></span><span>' + statusText +
+      (st.current ? '<span class="wp-cur" data-wpcur> · 当前：' + esc(st.current) + "</span>" : "") +
       "</span></div>";
 
     if (st.dirs.length) {
@@ -1290,9 +1303,46 @@
         "</span></div>").join("") + "</div>";
     }
 
-    html += '<div class="look-block" style="margin-top:14px"><div class="look-label">渲染模式</div>' +
+    // 分级筛选：Wallpaper Engine 的 project.json 里 contentrating 字段
+    html += '<div class="look-block" style="margin-top:14px"><div class="look-label">壁纸分级<span class="look-val">' +
+      (st.hidden ? "筛掉 " + st.hidden + " 个" : "全部可见") + "</span></div>" +
+      seg("rating", rating, [
+        { v: "everyone", t: "大众级" },
+        { v: "questionable", t: "家长指导" },
+        { v: "mature", t: "成人" },
+      ], false) +
+      '<div class="wp-note">' +
+      (rating === "mature" ? "显示全部三个级别。成人级内容只在本机渲染，不经过服务器。"
+        : rating === "questionable" ? "显示大众级 + 家长指导级，成人级不加载。"
+        : "只显示标注为大众级的壁纸。没有 project.json 的普通视频目录一律按大众级处理。") +
+      "</div></div>";
+
+    // 壁纸列表：按扫描顺序列出，点哪张放哪张
+    if (st.count) {
+      html += '<div class="look-block"><div class="look-label">壁纸列表<span class="look-val">' +
+        st.count + " 个 · 顺序播放</span></div>" +
+        '<div class="wp-list' + (st.count <= 8 ? " is-short" : "") + '" role="listbox" aria-label="壁纸列表">' +
+        st.list.map((it) =>
+          '<button type="button" class="wp-item' + (it.on ? " on" : "") + '" data-wpitem="' + it.i + '"' +
+          ' role="option" aria-selected="' + (it.on ? "true" : "false") + '">' +
+          '<span class="wp-item-idx">' + String(it.i + 1).padStart(2, "0") + "</span>" +
+          '<span class="wp-item-name">' + esc(it.title) + "</span>" +
+          (it.rating !== "everyone" ? '<span class="wp-badge is-' + it.rating + '">' + (RL[it.rating] || "") + "</span>" : "") +
+          '<span class="wp-item-play">' + (it.on ? C.icon("check", 12) : "") + "</span>" +
+          "</button>").join("") +
+        "</div></div>";
+    }
+
+    html += '<div class="look-block"><div class="look-label">渲染模式</div>' +
       seg("mode", mode, [{ v: "dynamic", t: "动态" }, { v: "static", t: "静态帧" }, { v: "off", t: "关闭壁纸" }], !st.count) +
       "</div>";
+
+    // 自动轮换做成开关：关掉就单张循环，不再播完自己换
+    html += '<div class="look-block"><div class="look-label">自动轮换<span class="look-val">' +
+      (autoRotate ? "播完换下一张" : "单张循环") + "</span></div>" +
+      '<button class="switch' + (autoRotate ? " on" : "") + '" data-wpt="autoRotate" role="switch" aria-checked="' +
+      (autoRotate ? "true" : "false") + '" aria-label="自动轮换壁纸"></button></div>';
+
     html += '<div class="look-block"><div class="look-label">适配方式</div>' +
       seg("fit", c.fit || "cover", [{ v: "cover", t: "满屏裁剪" }, { v: "contain", t: "完整缩放" }, { v: "fill", t: "拉伸铺满" }], false) +
       "</div>";
@@ -1311,11 +1361,11 @@
     html += '<div class="wp-actions">' +
       '<button class="btn btn-primary" data-wpact="add" style="height:32px">' + C.icon("plus", 13) + " 添加目录</button>" +
       (st.needPerm ? '<button class="btn btn-ghost" data-wpact="reauth" style="height:32px">重新授权</button>' : "") +
-      (st.count ? '<button class="btn btn-ghost" data-wpact="next" style="height:32px">换一个</button>' : "") +
+      (st.count > 1 ? '<button class="btn btn-ghost" data-wpact="next" style="height:32px">下一张</button>' : "") +
       (st.dirs.length ? '<button class="btn btn-ghost" data-wpact="rescan" style="height:32px">重新扫描</button>' : "") +
       (st.dirs.length ? '<button class="btn btn-danger" data-wpact="clear" style="height:32px">清除</button>' : "") +
       "</div>";
-    html += '<div class="wp-hint">' + C.icon("sparkle", 12) + " 选择存放 mp4 / webm 的目录；也可以直接选 Wallpaper Engine 的壁纸库目录（Steam → steamapps → workshop → content → 431960），会自动识别子目录里的视频项目。" +
+    html += '<div class="wp-hint">' + C.icon("sparkle", 12) + " 选择存放 mp4 / webm 的目录；也可以直接选 Wallpaper Engine 的壁纸库目录（Steam → steamapps → workshop → content → 431960），会自动读取每个子目录 project.json 里的标题与分级。" +
       "<br>场景壁纸（scene.pkg）与网页壁纸需要 Wallpaper Engine 自身的渲染器，浏览器无法加载，请改用视频壁纸。" +
       "<br>浏览器安全限制：每次重新打开页面需要点一次目录授权，无法像桌面客户端那样记住。" +
       "</div>";
@@ -1348,6 +1398,30 @@
         W.saveCfg({ [k]: on });
         s.classList.toggle("on", on);
         s.setAttribute("aria-checked", on ? "true" : "false");
+        // 自动轮换的说明要跟着变，否则开关拨了、旁边文字还是旧的
+        if (k === "autoRotate") {
+          const blk = s.closest(".look-block");
+          const val = blk && blk.querySelector(".look-val");
+          if (val) val.textContent = on ? "播完换下一张" : "单张循环";
+        }
+      });
+    });
+
+    // 列表点选：就地更新选中态，不整页重渲染（壁纸多时重渲染会明显掉帧）
+    $$("[data-wpitem]", root).forEach((b) => {
+      b.addEventListener("click", () => {
+        const i = parseInt(b.dataset.wpitem, 10);
+        if (!isNaN(i)) W.playAt(i);
+        $$("[data-wpitem]", root).forEach((x) => {
+          const cur = x === b;
+          x.classList.toggle("on", cur);
+          x.setAttribute("aria-selected", cur ? "true" : "false");
+          const slot = x.querySelector(".wp-item-play");
+          if (slot) slot.innerHTML = cur ? C.icon("check", 12) : "";
+        });
+        const name = (b.querySelector(".wp-item-name") || {}).textContent || "";
+        const cur = $("[data-wpcur]", root);
+        if (cur) cur.textContent = " · 当前：" + name;
       });
     });
     $$("[data-wpact]", root).forEach((b) => {
@@ -1359,8 +1433,14 @@
             r = await W.pickDirFallback();
             if (r.ok) toast("已加载 " + r.count + " 个视频（刷新后需重选）", "success");
           } else if (r.ok) {
-            toast(r.count ? "已连接「" + r.name + "」，识别到 " + r.count + " 个视频" : "目录里没有视频文件", r.count ? "success" : "error");
-            if (r.count) W.saveCfg({ mode: "dynamic" });
+            const total = W.getState().total;
+            toast(r.count
+              ? "已连接「" + r.name + "」，识别到 " + r.count + " 个视频"
+              : total ? "已连接「" + r.name + "」，但这个分级下没有可显示的壁纸" : "目录里没有视频文件",
+              r.count || total ? "success" : "error");
+            // 有壁纸就启用（哪怕当前分级全筛掉了）——放开分级后能直接看到，
+            // 不然开关会一直停在「关闭壁纸」，用户以为坏了
+            if (total) W.saveCfg({ mode: "dynamic" });
           } else if (!r.canceled) {
             toast(r.error || "添加失败", "error");
           }

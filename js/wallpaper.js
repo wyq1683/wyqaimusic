@@ -19,6 +19,20 @@
   const VIDEO_EXT = /\.(mp4|webm|ogv|m4v)$/i;
   const MAX_DEPTH = 3; // Steam/steamapps/workshop/content/431960/<id>/ 需要 2 层
 
+  // Wallpaper Engine 的 project.json 用 contentrating 标注分级，
+  // 取值是 Everyone / Questionable / Mature。这里给出可比大小的顺序，
+  // 筛选语义是「允许显示到的最高级别」。
+  const RATING_RANK = { everyone: 0, questionable: 1, mature: 2 };
+  const RATING_LABEL = { everyone: "大众级", questionable: "家长指导", mature: "成人" };
+
+  function normRating(v) {
+    const s = String(v || "").trim().toLowerCase();
+    if (s === "mature" || s === "adult" || s === "r18" || s === "r18+") return "mature";
+    if (s === "questionable" || s === "pg" || s === "pg13" || s === "teen") return "questionable";
+    // 没有 project.json 的裸视频目录一律按大众级处理 —— 分级缺失时不能默认放行
+    return "everyone";
+  }
+
   const DEFAULTS = {
     mode: "off",        // off | dynamic | static
     fit: "cover",       // cover | contain | fill
@@ -27,12 +41,15 @@
     blur: 0,            // 壁纸模糊 px
     pauseHidden: true,  // 窗口隐藏时暂停
     sound: false,       // 壁纸声音
+    autoRotate: true,   // 播完自动换下一张；关掉则单张循环
+    rating: "everyone", // 可见的最高分级：everyone | questionable | mature
   };
 
   let cfg = Object.assign({}, DEFAULTS);
   let dirs = [];            // [{ handle, name }]，handle 可能为 null（降级模式）
   let sessionFiles = [];    // 降级模式下的 File 列表
-  let playList = [];        // [{ name, title, getFile }]
+  let allList = [];         // 全部扫描结果（含被分级筛掉的）
+  let playList = [];        // 当前分级下可见的列表
   let idx = -1;
   let curUrl = null;
   let els = null;
@@ -47,9 +64,21 @@
     } catch (e) { /* 忽略坏数据 */ }
     return cfg;
   }
+  function persist() {
+    try { localStorage.setItem(K, JSON.stringify(cfg)); } catch (e) { /* 忽略配额/隐私模式 */ }
+  }
   function saveCfg(patch) {
     cfg = Object.assign({}, cfg, patch);
-    try { localStorage.setItem(K, JSON.stringify(cfg)); } catch (e) { /* 忽略 */ }
+    persist();
+    // 分级变了要重建可见列表：当前这张被筛掉时必须立刻换掉，
+    // 否则会出现「选了大众级，画面还停在成人壁纸上」的尴尬。
+    if (Object.prototype.hasOwnProperty.call(patch, "rating")) {
+      const needReload = rebuildList();
+      if (needReload) {
+        if (cfg.mode !== "off" && playList.length) loadAt(idx >= 0 ? idx : 0, true);
+        else clearVideo();
+      }
+    }
     applyCfg();
     emit();
     return cfg;
@@ -99,7 +128,12 @@
     const video = document.getElementById("bgWallVideo");
     if (!wrap || !video) return null;
     els = { wrap, video };
-    video.addEventListener("ended", () => next(true));
+    video.addEventListener("ended", () => {
+      // 关掉自动轮换时视频是 loop 的，正常不会走到这里；
+      // 真走到这里（loop 被清掉等）就停住，不要擅自换壁纸。
+      if (!cfg.autoRotate) return;
+      next(true);
+    });
     video.addEventListener("error", () => {
       // 单个文件坏了不要卡死，跳下一个
       lastError = "无法解码：" + (currentName() || "未知文件");
@@ -135,23 +169,45 @@
     video.style.opacity = (Math.max(10, Math.min(100, cfg.opacity)) / 100).toFixed(2);
     video.style.objectFit = cfg.fit === "contain" ? "contain" : cfg.fit === "fill" ? "fill" : "cover";
     video.muted = !cfg.sound;
-    if (cfg.mode === "static") {
+    // 关掉自动轮换（或只有一张）时用原生 loop 让当前壁纸自己循环。
+    // 否则播完会走 ended → next()，看起来就是「我没让它换它却换了」。
+    video.loop = !cfg.autoRotate || playList.length <= 1;
+    if (!active) {
+      // 关掉壁纸 / 列表被筛空时别让视频在后台空转
       try { video.pause(); } catch (e) { /* ignore */ }
-    } else if (cfg.mode === "dynamic" && active && !document.hidden) {
+    } else if (cfg.mode === "static") {
+      try { video.pause(); } catch (e) { /* ignore */ }
+    } else if (cfg.mode === "dynamic" && !document.hidden) {
       try { const p = video.play(); if (p && p.catch) p.catch(() => {}); } catch (e) { /* ignore */ }
     }
     document.body.classList.toggle("has-wallpaper", active);
   }
 
+  function clearVideo() {
+    const el = ensureEls();
+    if (!el) return;
+    try {
+      el.video.pause();
+      el.video.removeAttribute("src");
+      el.video.load();
+    } catch (e) { /* ignore */ }
+    if (curUrl) { try { URL.revokeObjectURL(curUrl); } catch (e) { /* ignore */ } }
+    curUrl = null;
+  }
+
   /* ---------------- 扫描目录 ---------------- */
-  async function readProjectTitle(dirHandle) {
+  // Wallpaper Engine 项目目录里的 project.json，取标题与分级
+  async function readProjectMeta(dirHandle) {
     try {
       const fh = await dirHandle.getFileHandle("project.json");
       const file = await fh.getFile();
-      const txt = await file.text();
-      const j = JSON.parse(txt);
-      return j && (j.title || j.name) ? String(j.title || j.name) : "";
-    } catch (e) { return ""; }
+      const j = JSON.parse(await file.text());
+      if (!j) return { title: "", rating: "" };
+      return {
+        title: j.title || j.name ? String(j.title || j.name) : "",
+        rating: j.contentrating || j.contentRating || "",
+      };
+    } catch (e) { return { title: "", rating: "" }; }
   }
 
   async function scanHandle(dirHandle, depth, out) {
@@ -177,8 +233,8 @@
     }
   }
 
-  // 按目录批量读取 Wallpaper Engine 的 project.json，给视频补上可读标题
-  async function fillTitles(list) {
+  // 按目录批量读取 project.json，给视频补上可读标题与分级
+  async function fillMeta(list) {
     const byDir = new Map();
     list.forEach((it) => {
       if (!it._dir) return;
@@ -186,9 +242,38 @@
       byDir.get(it._dir).push(it);
     });
     for (const [dir, items] of byDir) {
-      const t = await readProjectTitle(dir);
-      if (t) items.forEach((it) => { it.title = t; });
+      const meta = await readProjectMeta(dir);
+      items.forEach((it) => {
+        if (meta.title) it.title = meta.title;
+        it.rating = normRating(meta.rating);
+      });
     }
+  }
+
+  // 按当前分级重建可见列表。返回 true 表示当前这张被筛掉了（需要换一张）。
+  // 被筛掉时落到「在原始扫描顺序里最近的下一张仍可见的」，而不是一律跳回第一张 ——
+  // 否则用户把分级从成人调回大众，画面会从第 290 张直接蹦回第 1 张，像刚加载完。
+  function rebuildList() {
+    const cur = playList[idx];
+    const cap = RATING_RANK[cfg.rating] || 0;
+    const curPos = cur ? allList.findIndex((it) => it.id === cur.id) : -1;
+    playList = allList.filter((it) => (RATING_RANK[it.rating] || 0) <= cap);
+    if (!playList.length) { idx = -1; return true; }
+    if (cur) {
+      // 当前壁纸仍然合法就别动画面，避免只是改了筛选却闪一下
+      const i = playList.findIndex((it) => it.id === cur.id);
+      if (i >= 0) { idx = i; return false; }
+    }
+    if (curPos >= 0) {
+      const nextIds = new Set(playList.map((it) => it.id));
+      for (let k = curPos + 1; k < allList.length; k++) {
+        if (nextIds.has(allList[k].id)) { idx = playList.findIndex((it) => it.id === allList[k].id); return true; }
+      }
+      idx = 0; // 后面没有了就回到开头
+      return true;
+    }
+    idx = -1;
+    return true;
   }
 
   async function rescan() {
@@ -208,13 +293,26 @@
     } catch (e) {
       lastError = "扫描失败：" + (e && e.message ? e.message : e);
     }
-    await fillTitles(out); // 先补 WE 项目标题，再固化播放列表
-    playList = out.map((x) => ({ name: x.name, title: x.title || x.name, getFile: x.getFile }));
+    await fillMeta(out); // 先补 WE 的标题与分级，再固化列表
+    allList = out.map((x) => ({
+      id: (x.dirName || "") + "|" + x.name,
+      name: x.name,
+      dirName: x.dirName || "",
+      title: x.title || x.name,
+      rating: x.rating || "everyone",
+      getFile: x.getFile,
+    }));
+    playList = [];
+    idx = -1;
+    rebuildList();
     scanning = false;
-    if (!playList.length && cfg.mode !== "off") {
+    // 只有「目录里一个视频都没有」才把 mode 关掉。
+    // 全是壁纸但被分级筛空时不动 mode —— 否则用户往上一档放开分级，
+    // 画面永远起不来（开关还停在关闭壁纸），只能重新扫一遍。
+    if (!playList.length && !allList.length && cfg.mode !== "off") {
       lastError = lastError || "目录里没有视频文件（支持 mp4 / webm / ogv）";
       cfg.mode = "off";
-      try { localStorage.setItem(K, JSON.stringify(cfg)); } catch (e) { /* ignore */ }
+      persist();
     }
     if (cfg.mode !== "off" && playList.length) { idx = -1; next(true); }
     applyCfg();
@@ -228,18 +326,30 @@
   }
 
   let loading = false;
-  async function next(auto) {
-    if (!playList.length || loading) return;
+  let queued = null; // 连点列表时排队最后一次请求，不吞点击
+
+  // 顺序切下一张
+  function next(auto) {
+    if (!playList.length) return;
+    return loadAt(idx < 0 ? 0 : (idx + 1) % playList.length, auto);
+  }
+
+  // 加载指定项（列表点选 / 轮换都走这里）
+  async function loadAt(i, auto) {
+    if (!playList.length) return;
+    if (i < 0 || i >= playList.length) return;
+    if (loading) { queued = i; return; }
     loading = true;
-    idx = (idx + 1) % playList.length;
-    const it = playList[idx];
+    idx = i;
+    const it = playList[i];
     try {
       const file = await it.getFile();
       if (curUrl) { try { URL.revokeObjectURL(curUrl); } catch (e) { /* ignore */ } }
       curUrl = URL.createObjectURL(file);
       const el = ensureEls();
-      if (!el) return;
+      if (!el) { loading = false; return; }
       el.video.src = curUrl;
+      el.video.loop = !cfg.autoRotate || playList.length <= 1;
       if (cfg.mode === "dynamic" && !(cfg.pauseHidden && document.hidden)) {
         try { const p = el.video.play(); if (p && p.catch) p.catch(() => {}); } catch (e) { /* ignore */ }
       }
@@ -251,6 +361,12 @@
       return;
     }
     loading = false;
+    if (queued !== null) {
+      const q = queued;
+      queued = null;
+      loadAt(q, false);
+      return;
+    }
     emit();
   }
 
@@ -318,6 +434,7 @@
   async function clearDirs() {
     dirs = [];
     sessionFiles = [];
+    allList = [];
     playList = [];
     idx = -1;
     if (curUrl) { try { URL.revokeObjectURL(curUrl); } catch (e) { /* ignore */ } }
@@ -326,7 +443,7 @@
     if (el) { try { el.video.removeAttribute("src"); el.video.load(); } catch (e) { /* ignore */ } }
     await idbSet("dirs", []);
     cfg.mode = "off";
-    try { localStorage.setItem(K, JSON.stringify(cfg)); } catch (e) { /* ignore */ }
+    persist();
     applyCfg();
     emit();
   }
@@ -345,6 +462,7 @@
     if (ready.length) await rescan();
     else {
       // 有句柄但没权限：等用户点「恢复」
+      allList = [];
       playList = [];
       applyCfg();
       emit();
@@ -373,6 +491,16 @@
       cfg: Object.assign({}, cfg),
       dirs: dirs.map((d) => ({ name: d.name, needPerm: !!d.needPerm, session: !d.handle })),
       count: playList.length,
+      total: allList.length,
+      hidden: Math.max(0, allList.length - playList.length),
+      list: playList.map((it, i) => ({
+        i,
+        id: it.id,
+        title: it.title,
+        rating: it.rating,
+        dir: it.dirName,
+        on: i === idx,
+      })),
       current: currentName(),
       scanning,
       needPerm,
@@ -394,6 +522,8 @@
     init, on, getState, saveCfg, loadCfg,
     pickDir, pickDirFallback, clearDirs, rescan, reauthorize,
     next: () => next(false),
+    playAt: (i) => loadAt(i, false),
+    RATING_LABEL,
     get cfg() { return Object.assign({}, cfg); },
     DEFAULTS,
   };

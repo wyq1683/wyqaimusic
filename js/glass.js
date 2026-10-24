@@ -87,7 +87,7 @@
     root.style.setProperty("--ad-wash-a", wash.toFixed(3));
     root.style.setProperty("--ad-veil-a", veil.toFixed(3));
     root.style.setProperty("--ad-lum", curLum.toFixed(3));
-    if (document.body) document.body.classList.toggle("ad-bright", eff > 0.66);
+    if (document.body) document.body.classList.toggle("ad-bright", eff > 0.55);
     return { glass: glass, strong: strong, card: wash, surface: surface, veil: veil, lum: curLum };
   }
 

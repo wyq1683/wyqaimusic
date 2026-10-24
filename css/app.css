@@ -1566,7 +1566,8 @@ textarea.field-input { height: auto; padding: 10px 13px; resize: vertical; }
   align-items: center;
   gap: 22px;
   padding: 26px;
-  border-radius: var(--r-xl);
+  /* 一屏只留这一块玻璃。它是这页的主视觉，别的块都退成线。 */
+  border-radius: var(--r-lg);
   background: var(--glass-card);
   border: 1px solid var(--hairline);
   margin-bottom: 24px;
@@ -1606,29 +1607,46 @@ textarea.field-input { height: auto; padding: 10px 13px; resize: vertical; }
   color: var(--accent-text);
   font-weight: 500;
 }
+/* 统计带：四个数各套一块玻璃是一屏 6 个等重容器 = 没有层级。
+   改成一条带分隔线的数据带 —— 数字当主角，容器退成线。 */
 .stat-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-  gap: 12px;
-  margin-bottom: 26px;
+  gap: 0;
+  margin-bottom: 8px;
+  border-top: 1px solid var(--hairline);
+  border-bottom: 1px solid var(--hairline);
 }
 .stat-card {
-  padding: 16px;
-  border-radius: var(--r-lg);
-  background: var(--glass-card);
-  border: 1px solid var(--hairline);
-  transition: all var(--dur-2) var(--ease-out);
+  padding: 16px 18px;
+  border-radius: 0;
+  background: none;
+  border: 0;
+  border-left: 1px solid var(--hairline);
+  transition: color var(--dur-2) var(--ease-out);
   cursor: pointer;
 }
-.stat-card:hover { transform: translateY(-3px); border-color: var(--hairline-strong); box-shadow: var(--shadow-2); }
+.stat-card:first-child { border-left: 0; padding-left: 2px; }
+/* 窄屏两列时，第二排要有横线收口，否则四格与两格看起来是同一块 */
+@media (max-width: 600px) {
+  .stat-row { grid-template-columns: 1fr 1fr; }
+  .stat-card:nth-child(n + 3) { border-top: 1px solid var(--hairline); }
+  .stat-card:nth-child(odd) { border-left: 0; }
+}
+.stat-card:hover { background: none; }
+.stat-card:hover .stat-num { color: var(--accent-text); }
 .stat-num { font-family: var(--font-num); font-size: 1.5rem; font-weight: 800; }
 .stat-label { font-size: 0.76rem; color: var(--text-3); margin-top: 3px; }
+/* 操作列表同理：一行就是一行，外面不需要再罩一层框。
+   分隔线本身已经足够表达"这是一组"。 */
 .menu-list {
-  border-radius: var(--r-lg);
-  background: var(--glass-card);
-  border: 1px solid var(--hairline);
+  border-radius: 0;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--hairline);
   overflow: hidden;
 }
+.menu-list .menu-row { padding-left: 2px; padding-right: 2px; }
 .menu-row {
   display: flex;
   align-items: center;
@@ -2152,34 +2170,30 @@ body[data-theme="light"].has-wallpaper {
   --hairline-strong: rgba(12, 16, 30, 0.2);
 }
 
-/* 内容区：用 surface 面（kit §2.2）。它是「一块板」而不是压暗层 ——
-   壁纸从版面两侧留白、板块间隙、以及板子自己的半透明里透出来。
-   正在播放页排除在外，那页本来就是给壁纸当舞台的。 */
-body.has-wallpaper:not([data-route="/now-playing"]) .view > .page,
-body.bg-photo:not([data-route="/now-playing"]) .view > .page {
-  background: rgb(var(--panel-rgb) / var(--ad-surface-a, 0.74));
-  backdrop-filter: blur(30px) saturate(1.2);
-  -webkit-backdrop-filter: blur(30px) saturate(1.2);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  border-top-color: rgba(255, 255, 255, 0.12);
-  border-radius: var(--r-xl);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.06),
-    0 20px 60px rgba(0, 0, 0, 0.38);
-  /* 撑满可视区，否则空状态页只有一小块卡片浮在壁纸上，像没加载完 */
-  min-height: calc(100dvh - var(--topbar-h) - var(--player-h) - 48px);
+/* 内容区底色：挂在 .view 上，不挂 .page。
+   页面是画布，不是卡片 —— 给 .page 加圆角+边框+阴影就成了"整页一个大玻璃壳"，
+   里面再嵌小块玻璃，两层容器叠着，视觉上又闷又假。
+   这里只做一层「看得出这块区域更暗」的底色，没有形状。 */
+body.has-wallpaper .view,
+body.bg-photo .view {
+  background: rgb(var(--panel-rgb) / var(--ad-surface-a, 0.55));
+  backdrop-filter: blur(24px) saturate(1.15);
+  -webkit-backdrop-filter: blur(24px) saturate(1.15);
 }
-body[data-theme="light"].has-wallpaper:not([data-route="/now-playing"]) .view > .page,
-body[data-theme="light"].bg-photo:not([data-route="/now-playing"]) .view > .page {
-  border-color: rgba(20, 24, 40, 0.08);
-  border-top-color: rgba(20, 24, 40, 0.14);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.6),
-    0 20px 60px rgba(30, 40, 70, 0.12);
+/* 页面本身不加任何装饰；正在播放页连底色都不要，壁纸直接当舞台 */
+body.has-wallpaper .view > .page,
+body.bg-photo .view > .page {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  min-height: 0;
 }
-body.has-wallpaper:not([data-route="/now-playing"]) .view,
-body.bg-photo:not([data-route="/now-playing"]) .view { padding-left: 14px; padding-right: 14px; }
-body.has-wallpaper[data-route="/now-playing"] .view > .page { background: transparent; }
+body.has-wallpaper[data-route="/now-playing"] .view {
+  background: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
 /* 正在播放页刻意不加内容面（壁纸要当舞台），那里的文字是直接压在画面上的。
    用一层投影把字从背景里拔出来 —— 这是 kit §2.5 给的 .lg-on-scene 处理，
    比再盖一层压暗更划算：字清楚了，壁纸还是原样。 */

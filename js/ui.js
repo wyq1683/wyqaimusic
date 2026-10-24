@@ -216,11 +216,13 @@
     mask.appendChild(menu);
     document.body.appendChild(mask);
     mask.addEventListener("click", closeMenu);
-    // 定位（防溢出）
-    document.body.appendChild(menu);
-    const r = menu.getBoundingClientRect();
-    const px = Math.min(x, window.innerWidth - r.width - 12);
-    const py = Math.min(y, window.innerHeight - r.height - 12);
+    // 定位（防溢出）—— menu 必须留在 mask 内，才能随 mask 一起被移除。
+    // 用 offsetWidth/offsetHeight 而不是 getBoundingClientRect：菜单带 pop-in 缩放动画，
+    // rect 量到的是缩放中的尺寸，会导致贴右边时仍溢出屏幕。
+    const mw = menu.offsetWidth;
+    const mh = menu.offsetHeight;
+    const px = Math.max(8, Math.min(x, window.innerWidth - mw - 12));
+    const py = Math.max(8, Math.min(y, window.innerHeight - mh - 12));
     menu.style.left = px + "px";
     menu.style.top = py + "px";
     window.__activeMenu = { mask, menu };
@@ -228,8 +230,11 @@
   function closeMenu() {
     if (window.__activeMenu) {
       window.__activeMenu.mask.remove();
+      window.__activeMenu.menu.remove();
       window.__activeMenu = null;
     }
+    // 兜底：清掉历史遗留的游离菜单（旧版 bug 会把 menu 挂在 body 上，遮罩删了它还在）
+    $$("body > .menu").forEach((n) => n.remove());
   }
 
   /* ==================== 命令面板（Ctrl+K） ==================== */

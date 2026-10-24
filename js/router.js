@@ -91,6 +91,9 @@
 
     if (!soft) startProgress();
 
+    // 切页时关掉可能还开着的右键菜单 / 命令面板，避免浮层被带到新页面
+    if (global.App.UI && global.App.UI.closeMenu) global.App.UI.closeMenu();
+
     const routeInfo = m || { route: { pattern: "*", title: "页面不存在" }, params: {} };
     current = { route: routeInfo.route.pattern, params: routeInfo.params, query };
 

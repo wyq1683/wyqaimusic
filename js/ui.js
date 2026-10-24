@@ -840,11 +840,6 @@
       '<div class="look-block"><div class="look-label">主题</div><div class="chip-row" id="lookTheme">' +
       '<button class="chip' + (s.theme === "dark" ? " active" : "") + '" data-ltheme="dark">深色</button>' +
       '<button class="chip' + (s.theme === "light" ? " active" : "") + '" data-ltheme="light">浅色</button></div></div>' +
-      '<div class="look-block"><div class="look-label">界面风格</div>' +
-      '<div class="chip-row" id="lookUiStyle">' +
-      '<button class="chip' + (s.uiStyle !== "clear" ? " active" : "") + '" data-luistyle="solid">实心</button>' +
-      '<button class="chip' + (s.uiStyle === "clear" ? " active" : "") + '" data-luistyle="clear">通透</button>' +
-      "</div></div>" +
       '<div class="look-block"><div class="look-label">强调色</div><div class="swatches" id="lookAccents">' +
       accents.map((a) =>
         '<button class="swatch' + (s.accent === a.val ? " active" : "") + '" data-laccent="' + a.val + '" title="' + a.name + '" style="' +
@@ -863,8 +858,14 @@
       "</div></div>" +
       '<div class="look-block"><div class="look-label">背景模糊<span class="look-val" id="lookBlurVal">' + s.bgBlur + "px</span></div>" +
       '<input type="range" class="range" id="lookBlur" min="0" max="30" value="' + s.bgBlur + '" aria-label="背景模糊" /></div>' +
-      '<div class="look-block"><div class="look-label">界面透明度<span class="look-val" id="lookGlassVal">' + s.glass + "%</span></div>" +
-      '<input type="range" class="range" id="lookGlass" min="0" max="100" value="' + s.glass + '" aria-label="界面透明度" /></div>' +
+      '<div class="look-block"><div class="look-label">玻璃质感</div>' +
+      '<div class="chip-row" id="lookGlassStyle">' +
+      '<button class="chip' + (s.glassStyle !== "clear" && s.glassStyle !== "frost" ? " active" : "") + '" data-gstyle="mid">半透</button>' +
+      '<button class="chip' + (s.glassStyle === "clear" ? " active" : "") + '" data-gstyle="clear">通透</button>' +
+      '<button class="chip' + (s.glassStyle === "frost" ? " active" : "") + '" data-gstyle="frost">磨砂</button>' +
+      "</div></div>" +
+      '<div class="look-block"><div class="look-label">玻璃不透明度<span class="look-val" id="lookGlassVal">' + s.glass + "%</span></div>" +
+      '<input type="range" class="range" id="lookGlass" min="0" max="100" value="' + s.glass + '" aria-label="玻璃不透明度" /></div>' +
       '<div class="look-block"><div class="look-label">本地壁纸<span class="look-val">' +
       (() => {
         const w = wpState();
@@ -878,10 +879,6 @@
 
     const refresh = () => renderLookPane();
     $$("[data-ltheme]", pane).forEach((b) => b.addEventListener("click", () => { C.saveSettings({ theme: b.dataset.ltheme }); refresh(); }));
-    $$("[data-luistyle]", pane).forEach((b) => b.addEventListener("click", () => {
-      C.saveSettings({ uiStyle: b.dataset.luistyle });
-      refresh();
-    }));
     $$("[data-laccent]", pane).forEach((b) => b.addEventListener("click", () => {
       C.saveSettings({ accent: b.dataset.laccent });
       if (!b.dataset.laccent && global.App.Player && global.App.Player.currentSong()) C.applySongAccent(global.App.Player.currentSong());
@@ -909,6 +906,10 @@
       C.saveSettings({ bgBlur: parseInt(blur.value, 10) });
       $("#lookBlurVal", pane).textContent = blur.value + "px";
     });
+    $$("[data-gstyle]", pane).forEach((b) => b.addEventListener("click", () => {
+      C.saveSettings({ glassStyle: b.dataset.gstyle });
+      refresh();
+    }));
     const glass = $("#lookGlass", pane);
     if (glass) glass.addEventListener("input", () => {
       C.saveSettings({ glass: parseInt(glass.value, 10) });

@@ -29,7 +29,36 @@
 
   function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
 
-  /* ---------------- 写变量 ---------------- */
+  /* 质感档位：kit §8.4.0 的三档（通透 / 半透 / 磨砂）。
+     clear  = 背景纹理看得清，玻璃几乎只是"一层膜"
+     mid    = 默认，能看见背景轮廓但被柔化
+     frost  = 磨砂，背景糊成色块，可读性最稳 */
+  const STYLE_K = { clear: 0.55, mid: 1, frost: 1.7 };
+
+  /* 用户旋钮：质感档位 + 不透明度滑块（0-100，默认 50 → 系数 1.0）。
+     滑块是分段映射而不是线性：50 正好是 1.0（不动基准），
+     往下到 0.35（几乎全透），往上是 2.2（接近实心）。
+     线性映射会让「拉到 100」只有 1.55 倍，用户会觉得滑块没劲。 */
+  const ui = { style: "mid", level: 50 };
+
+  function levelK() {
+    const t = clamp(ui.level, 0, 100) / 50; // 0 … 2，50 刚好 1
+    return t <= 1 ? 0.35 + t * 0.65 : 1 + (t - 1) * 1.2;
+  }
+  function styleK() { return STYLE_K[ui.style] || 1; }
+  function themeK() { return (document.body && document.body.dataset.theme === "light") ? 1.5 : 1; }
+
+  function setStyle(style, level) {
+    if (style) ui.style = STYLE_K[style] ? style : "mid";
+    if (typeof level === "number") ui.level = clamp(level, 0, 100);
+    if (document.body) {
+      document.body.classList.remove("glass-clear", "glass-mid", "glass-frost");
+      document.body.classList.add("glass-" + ui.style);
+    }
+    // 档位变了要按新系数立刻重算，不能等下一次采样
+    write(curLum, true);
+  }
+
   let lastWritten = -1;
 
   function write(lum, hard) {
@@ -37,24 +66,29 @@
     // 视频每帧亮度都在跳，直接跟会闪；用 EMA 平滑，慢半拍但看着稳
     curLum = hard ? lum : curLum * 0.62 + lum * 0.38;
     // 死区：变化小于 1.5% 就不写变量。否则视频里一点噪点都会触发
-    // 几十个玻璃元素重新合成，纯属白烧 GPU。
+    // 几十个玻璃元素重新合成，纯白烧 GPU。
     if (!hard && lastWritten >= 0 && Math.abs(curLum - lastWritten) < 0.015) return null;
     lastWritten = curLum;
+
+    // 基准值比 kit 的原公式低得多：原公式 0.42~0.70 出来是"半透塑料"，
+    // 用户要的是能看见背景的玻璃。基准压到 0.14~0.56，再乘档位与滑块。
     const eff = curLum;
-    const glass = 0.42 + eff * 0.28;
-    const card = 0.50 + eff * 0.26;
-    const surface = 0.62 + eff * 0.24;
-    // 场景遮罩只留极轻一层：亮到 1.0 时也才 0.44，暗背景基本为 0
+    const k = styleK() * levelK() * themeK();
+    const glass = clamp((0.14 + eff * 0.42) * k, 0.04, 0.96);
+    const strong = clamp((0.24 + eff * 0.50) * k, 0.06, 0.97);
+    const surface = clamp((0.34 + eff * 0.42) * k, 0.3, 0.96);
+    const wash = clamp(0.04 + eff * 0.06, 0.03, 0.12);
+    // 遮罩不吃档位系数：它是可读性的地板，不能被"通透"档一起拉低
     const veil = clamp(eff * 0.46, 0.02, 0.46);
 
     root.style.setProperty("--ad-glass-a", glass.toFixed(3));
-    root.style.setProperty("--ad-card-a", card.toFixed(3));
+    root.style.setProperty("--ad-strong-a", strong.toFixed(3));
     root.style.setProperty("--ad-surface-a", surface.toFixed(3));
+    root.style.setProperty("--ad-wash-a", wash.toFixed(3));
     root.style.setProperty("--ad-veil-a", veil.toFixed(3));
     root.style.setProperty("--ad-lum", curLum.toFixed(3));
-    // 极亮背景给文字加一档保险（见 app.css 里 body.ad-bright 的令牌覆盖）
     if (document.body) document.body.classList.toggle("ad-bright", eff > 0.66);
-    return { glass: glass, card: card, surface: surface, veil: veil, lum: curLum };
+    return { glass: glass, strong: strong, card: wash, surface: surface, veil: veil, lum: curLum };
   }
 
   /* ---------------- 图片采样 ---------------- */
@@ -155,6 +189,11 @@
   }
 
   function init() {
+    try {
+      const st = global.App.Core && global.App.Core.getSettings();
+      if (st) { ui.style = STYLE_K[st.glassStyle] ? st.glassStyle : "mid"; ui.level = typeof st.glass === "number" ? st.glass : 50; }
+    } catch (e) { /* 用默认档 */ }
+    setStyle(ui.style, ui.level);
     refresh(true);
     // 视频壁纸的元数据到得晚，loadeddata 时补一次采样
     document.addEventListener("visibilitychange", () => {
@@ -164,8 +203,9 @@
 
   global.App = global.App || {};
   global.App.Glass = {
-    init, write, refresh, watchVideo, stopVideo,
+    init, write, refresh, watchVideo, stopVideo, setStyle,
     measureImage, measureGradient, pixelsLum,
     get lum() { return curLum; },
+    get style() { return Object.assign({}, ui); },
   };
 })(window);

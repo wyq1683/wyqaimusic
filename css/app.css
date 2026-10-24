@@ -31,6 +31,56 @@
   scroll-behavior: smooth;
 }
 
+/* ==================== 1.5 液态玻璃材质 ====================
+   玻璃"像玻璃"靠三件事，不是靠实色：
+     ① 背景真的被模糊 + 提饱和（backdrop-filter）
+     ② 边缘有厚度：顶部 1px 高光 + 上冷下暖的色散（棱镜分光）
+     ③ 底部内阴影制造"这块玻璃有多厚"
+   不透明度由 --ad-* 控制（js/glass.js），这里只管光影。
+   三档质感对应三组 blur/saturate，用户可在设置里切。 */
+body.glass-clear { --glass-blur: 12px; --glass-sat: 1.25; }
+body.glass-mid   { --glass-blur: 30px; --glass-sat: 1.7; }
+body.glass-frost { --glass-blur: 46px; --glass-sat: 1.9; }
+
+/* 顶栏原来是完全透明的，压在壁纸上没有任何"面"，看着就是一张图。
+   给它玻璃底 —— 它是控件层（导航 + 搜索），本来就该是一块玻璃。 */
+.topbar {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat, 1));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat, 1));
+  border-bottom: 1px solid var(--hairline);
+}
+
+/* 导航面板比浮层再多一点实体。侧栏与播放条承载常驻文字（导航项、歌名），
+   透视的代价比卡片高 —— 卡片的字有人会盯着看，导航的字是扫一眼就要认出来。 */
+.sidebar { --glass-bg: rgb(var(--panel-rgb) / calc(var(--ad-glass-a, 0.34) + 0.10)); }
+.player-bar { --glass-bg-strong: rgb(var(--panel-rgb) / calc(var(--ad-strong-a, 0.55) + 0.10)); }
+/* 抽屉和弹窗背后是"别的文字"，玻璃再透就是重影 —— 那不是设计感，是读不清。
+   这两个不吃通透档位，永远保持一块能读的面。 */
+.drawer, .modal {
+  --glass-bg-strong: rgb(var(--panel-rgb) / calc(var(--ad-strong-a, 0.55) + 0.34));
+  --glass-bg: rgb(var(--panel-rgb) / calc(var(--ad-strong-a, 0.55) + 0.34));
+}
+
+/* 三块主面板的边缘厚度。只加光影，不动尺寸与布局。 */
+.sidebar,
+.topbar,
+.player-bar {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    inset 1px 0 0 rgba(180, 210, 255, 0.10),
+    inset -1px 0 0 rgba(255, 195, 165, 0.07),
+    inset 0 -22px 36px -30px rgba(0, 0, 0, 0.55);
+}
+/* 浅色主题色散反过来：玻璃越薄，冷色散越不明显 */
+body[data-theme="light"] .sidebar,
+body[data-theme="light"] .topbar,
+body[data-theme="light"] .player-bar {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.75),
+    inset 0 -22px 36px -30px rgba(30, 40, 70, 0.12);
+}
+
 /* ==================== 2. 侧边导航 ==================== */
 .sidebar {
   width: var(--sidebar-w);
@@ -39,8 +89,8 @@
   flex-direction: column;
   padding: 18px 12px calc(var(--player-h) + 14px);
   background: var(--glass-bg);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat, 1));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat, 1));
   border-right: 1px solid var(--hairline);
   transition: width var(--dur-2) var(--ease-spring);
   position: relative;
@@ -389,8 +439,8 @@ body.sb-mini .sb-nav .nav-item { justify-content: center; }
   gap: 16px;
   padding: 0 18px;
   background: var(--glass-bg-strong);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat, 1));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat, 1));
   border-top: 1px solid var(--hairline);
   position: fixed;
   left: 0;
@@ -561,7 +611,7 @@ body[data-np="1"] .view { padding-bottom: 34px; }
   padding: 10px 14px;
   border-radius: var(--r-md);
   background: var(--glass-bg-strong);
-  backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat, 1));
   border: 1px solid var(--hairline);
   box-shadow: var(--shadow-2);
   animation: pop-in var(--dur-2) var(--ease-spring);
@@ -601,8 +651,8 @@ body[data-np="1"] .view { padding-bottom: 34px; }
   display: flex;
   flex-direction: column;
   background: var(--glass-bg-strong);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat, 1));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat, 1));
   border-left: 1px solid var(--hairline);
   box-shadow: var(--shadow-3);
   transform: translateX(102%);
@@ -653,8 +703,8 @@ body[data-np="1"] .view { padding-bottom: 34px; }
   height: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
   padding-bottom: env(safe-area-inset-bottom);
   background: var(--glass-bg-strong);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat, 1));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat, 1));
   border-top: 1px solid var(--hairline);
   z-index: 38;
 }
@@ -992,7 +1042,7 @@ body[data-np="1"] .view { padding-bottom: 34px; }
   padding: 10px 18px;
   border-radius: var(--r-full);
   background: var(--glass-bg-strong);
-  backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat, 1));
   border: 1px solid var(--hairline);
   box-shadow: var(--shadow-2);
   font-size: 0.84rem;
@@ -1969,8 +2019,8 @@ textarea.field-input { height: auto; padding: 10px 13px; resize: vertical; }
   border: 1px solid var(--hairline-strong);
   color: var(--text-1);
   font-size: 0.78rem;
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat, 1));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat, 1));
   box-shadow: var(--shadow-2);
 }
 .np-mode-exit[hidden] { display: none; }
@@ -2082,67 +2132,20 @@ body.np-landscape .np-lyrics { height: min(46vh, 320px); padding: 6% 4px; }
   pointer-events: none;
 }
 
-/* ==================== 通透界面（Wave 1 风格，可选） ====================
-   Wave 1 的配方是 rgb(panel / 0.42 × glass-alpha)，默认 alpha 0.30，
-   也就是面板只有 12.6% 不透明度，背景能整片透出来。
-   这里保留同样的观感，但把模糊加到 28px：透明度这么低时，模糊是唯一的可读性支撑。
-   顺序上必须排在 has-wallpaper 规则之前 —— 壁纸模式下自动回落成实心面板。 */
-body.ui-clear {
-  --glass-bg: rgb(var(--panel-rgb) / 0.16);
-  --glass-bg-strong: rgb(var(--panel-rgb) / 0.36);
-  --glass-card: rgba(255, 255, 255, 0.06);
-  --glass-card-hover: rgba(255, 255, 255, 0.11);
-  --hairline: rgba(255, 255, 255, 0.13);
-  --hairline-strong: rgba(255, 255, 255, 0.22);
-  --glass-blur: 28px;
-}
-body[data-theme="light"].ui-clear {
-  --glass-card: rgba(20, 24, 40, 0.06);
-  --glass-card-hover: rgba(20, 24, 40, 0.11);
-  --hairline: rgba(20, 24, 40, 0.13);
-  --hairline-strong: rgba(20, 24, 40, 0.22);
-}
-/* 侧栏与播放条是承载导航/控制的主面板，比弹窗型面板再实一点，
-   否则文字压在背景光斑上会飘。加 :not(.has-wallpaper) 是因为这条的选择器
-   权重高于 body.has-wallpaper，不排除会把壁纸模式的实心面板又拉回透明。 */
-body.ui-clear:not(.has-wallpaper) .sidebar { --glass-bg: rgb(var(--panel-rgb) / 0.22); }
-body.ui-clear:not(.has-wallpaper) .player-bar { --glass-bg-strong: rgb(var(--panel-rgb) / 0.44); }
+/* 旧的「界面风格：实心 / 通透」已并入「玻璃质感」三档（通透 / 半透 / 磨砂）。
+   两套并存会出现"选了通透却是实心"这种自相矛盾，所以整块移除。 */
 
-/* 输入类控件（搜索框/音量条）在通透模式下只有 6% 底，占位文字对比会掉到 1.1:1，
-   单独补实一点 —— 它是要被点的，不能只当装饰 */
-body.ui-clear:not(.has-wallpaper) .search-trigger,
-body.ui-clear:not(.has-wallpaper) .palette-input-row {
-  background: rgb(var(--panel-rgb) / 0.38);
-}
-
-/* 面板透了，可读性只能靠背景兜底。
-   只补 0.2：图片类背景（桌面/移动/自定义）已经由 applySettings 的 isPhoto 分支
-   压到 0.5~0.62，这里再加 0.45 会叠成 0.72，壁纸彻底看不见，通透就白做了。 */
-body.ui-clear:not(.has-wallpaper) .bg-veil::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: rgba(5, 6, 12, 0.2);
-}
-/* .bg-veil 自身是 fixed 定位，::before 需要它成为定位上下文 */
-.bg-veil { isolation: isolate; }
-body[data-theme="light"].ui-clear:not(.has-wallpaper) .bg-veil::before {
-  background: rgba(238, 240, 247, 0.26);
-}
 
 /* ==================== 自适应玻璃（壁纸 / 图片背景） ====================
    --ad-* 由 js/glass.js 按背景亮度实时写入。
    要点：壁纸本体不压暗，可读性交给玻璃自己 —— 背景越亮玻璃越实。 */
 body.has-wallpaper {
-  --glass-card: rgb(var(--panel-rgb) / var(--ad-card-a, 0.62));
-  --glass-card-hover: rgb(var(--panel-rgb) / calc(var(--ad-card-a, 0.62) + 0.07));
-  --glass-bg: rgb(var(--panel-rgb) / var(--ad-glass-a, 0.55));
-  --glass-bg-strong: rgb(var(--panel-rgb) / var(--ad-surface-a, 0.74));
+  /* 玻璃令牌已经在 tokens.css 里接到 --ad-*，这里不再重复覆盖，
+     否则会把「玻璃质感」三档和滑块的效果盖掉。只补壁纸场景特有的两处： */
   --hairline: rgba(255, 255, 255, 0.14);
   --hairline-strong: rgba(255, 255, 255, 0.22);
   /* 次级文字在最坏情况（纯白画面）下只有 3.4:1，抬一档 */
   --text-3: #9aa0b8;
-  --glass-blur: 32px;
 }
 body[data-theme="light"].has-wallpaper {
   --hairline: rgba(12, 16, 30, 0.12);
@@ -2186,9 +2189,9 @@ body.has-wallpaper[data-route="/now-playing"] .page {
 /* 空状态（「还没有开始播放」）是白/灰字直接压在画面上，亮壁纸下会看不清。
    给它套一块小玻璃面 —— 它本来就是带 CTA 的操作块，属于控件层，符合 kit §2 的划分。 */
 body.has-wallpaper[data-route="/now-playing"] .empty {
-  background: rgb(var(--panel-rgb) / var(--ad-card-a, 0.62));
-  backdrop-filter: blur(24px) saturate(1.15);
-  -webkit-backdrop-filter: blur(24px) saturate(1.15);
+  background: rgb(var(--panel-rgb) / var(--ad-strong-a, 0.55));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat, 1));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat, 1));
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-top-color: rgba(255, 255, 255, 0.18);
   border-radius: var(--r-lg);
@@ -2201,10 +2204,6 @@ body.has-wallpaper[data-route="/now-playing"] .empty-title { color: var(--text-1
 
 /* 图片背景（桌面 / 移动 / 自定义）：同一套自适应，不再按最坏情况固定压暗 */
 body.bg-photo:not(.has-wallpaper) {
-  --glass-card: rgb(var(--panel-rgb) / var(--ad-card-a, 0.62));
-  --glass-card-hover: rgb(var(--panel-rgb) / calc(var(--ad-card-a, 0.62) + 0.07));
-  --glass-bg: rgb(var(--panel-rgb) / var(--ad-glass-a, 0.55));
-  --glass-bg-strong: rgb(var(--panel-rgb) / var(--ad-surface-a, 0.74));
   --hairline: rgba(255, 255, 255, 0.14);
   --hairline-strong: rgba(255, 255, 255, 0.22);
   --text-3: #9aa0b8;

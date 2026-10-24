@@ -572,13 +572,13 @@
     theme: "dark",
     accent: "",            // 空 = 跟随歌曲封面
     bgBlur: 6,
-    glass: 30,
+    glass: 50,             // 玻璃不透明度 0-100（50 = 标准）
+    glassStyle: "mid",     // 玻璃质感：clear 通透 | mid 半透 | frost 磨砂
     boost: 1,
     haptics: true,
     bgPreset: "aurora",
     bgImage: "",           // 自定义背景（压缩后的 dataURL）
     sidebarMini: false,
-    uiStyle: "solid",      // solid = 实心玻璃（Wave 2）| clear = 通透玻璃（Wave 1）
   };
   function getSettings() {
     return Object.assign({}, defaultSettings, read(K.SETTINGS, {}));
@@ -592,8 +592,8 @@
   function applySettings(s) {
     document.body.dataset.theme = s.theme;
     document.body.classList.toggle("sb-mini", !!s.sidebarMini);
-    // 通透界面（Wave 1 观感）：仅切一个类，令牌整体换挡，组件零改动
-    document.body.classList.toggle("ui-clear", s.uiStyle === "clear");
+    // 玻璃质感档位 + 不透明度旋钮（js/glass.js 会据此重算所有 --ad-* 变量）
+    if (global.App.Glass) global.App.Glass.setStyle(s.glassStyle || "mid", typeof s.glass === "number" ? s.glass : 50);
     if (s.accent) setAccent(s.accent);
     else if (global.App.Player && global.App.Player.current) applySongAccent(global.App.Player.current.song);
     // 图片类背景（桌面/移动/自定义）识别出来打标，CSS 靠 body.bg-photo 走自适应玻璃

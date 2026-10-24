@@ -1311,16 +1311,17 @@
       (s.bgImage ? '<button class="btn btn-ghost" id="stBgUse">使用我的图片</button><button class="btn btn-danger" id="stBgClear">移除</button>' : "") +
       "</div></div>" +
 
-      '<div class="set-row"><div class="set-info"><div class="set-name">界面风格</div><div class="set-desc">通透 = Wave 1 的透明玻璃，背景整片透出；实心 = Wave 2 当前观感</div></div>' +
-      '<div class="set-ctrl"><div class="chip-row" id="stUiStyle">' +
-      '<button class="chip' + (s.uiStyle !== "clear" ? " active" : "") + '" data-uistyle="solid">实心</button>' +
-      '<button class="chip' + (s.uiStyle === "clear" ? " active" : "") + '" data-uistyle="clear">通透</button>' +
-      "</div></div></div>" +
-
       '<div class="set-row"><div class="set-info"><div class="set-name">背景模糊</div><div class="set-desc">数值越大背景越朦胧</div></div>' +
       '<div class="set-ctrl"><input type="range" class="range" id="stBlur" min="0" max="30" value="' + s.bgBlur + '" /><span class="range-val" id="stBlurVal">' + s.bgBlur + "px</span></div></div>" +
 
-      '<div class="set-row"><div class="set-info"><div class="set-name">界面透明度</div><div class="set-desc">玻璃拟态面板的透光程度</div></div>' +
+      '<div class="set-row"><div class="set-info"><div class="set-name">玻璃质感</div><div class="set-desc">通透 = 背景纹理清晰可见，只隔一层膜；磨砂 = 背景糊成色块，最好读</div></div>' +
+      '<div class="set-ctrl"><div class="chip-row" id="stGlassStyle">' +
+      '<button class="chip' + (s.glassStyle !== "clear" && s.glassStyle !== "frost" ? " active" : "") + '" data-gstyle="mid">半透</button>' +
+      '<button class="chip' + (s.glassStyle === "clear" ? " active" : "") + '" data-gstyle="clear">通透</button>' +
+      '<button class="chip' + (s.glassStyle === "frost" ? " active" : "") + '" data-gstyle="frost">磨砂</button>' +
+      "</div></div></div>" +
+
+      '<div class="set-row"><div class="set-info"><div class="set-name">玻璃不透明度</div><div class="set-desc">数值越小越透明；环境越亮会自动变实一点</div></div>' +
       '<div class="set-ctrl"><input type="range" class="range" id="stGlass" min="0" max="100" value="' + s.glass + '" /><span class="range-val" id="stGlassVal">' + s.glass + "%</span></div></div>" +
       "</div></div>" +
 
@@ -1384,14 +1385,6 @@
         UI().toast(v ? "主题色已更新" : "已恢复跟随歌曲封面");
       })
     );
-    // 界面风格（实心 / 通透）
-    $$("[data-uistyle]", el).forEach((b) =>
-      b.addEventListener("click", () => {
-        C.saveSettings({ uiStyle: b.dataset.uistyle });
-        $$("[data-uistyle]", el).forEach((x) => x.classList.toggle("active", x === b));
-        UI().toast(b.dataset.uistyle === "clear" ? "已切换通透界面" : "已切换实心界面");
-      })
-    );
     // 背景
     $$("[data-bg]", el).forEach((b) =>
       b.addEventListener("click", () => {
@@ -1444,6 +1437,13 @@
       C.saveSettings({ glass: parseInt(e.target.value, 10) });
       $("#stGlassVal", el).textContent = e.target.value + "%";
     });
+    // 玻璃质感三档
+    $$("[data-gstyle]", el).forEach((b) =>
+      b.addEventListener("click", () => {
+        C.saveSettings({ glassStyle: b.dataset.gstyle });
+        $$("[data-gstyle]", el).forEach((x) => x.classList.toggle("active", x === b));
+      })
+    );
     // 音量增强
     $$("[data-boost]", el).forEach((b) =>
       b.addEventListener("click", () => {

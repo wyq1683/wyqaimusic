@@ -14,10 +14,12 @@
   --panel-rgb: 15 17 28;
 
   /* ---- 玻璃表面 ---- */
-  --glass-bg: rgba(15, 17, 28, 0.66);
-  --glass-bg-strong: rgba(13, 15, 25, 0.86);
-  --glass-card: rgba(255, 255, 255, 0.045);
-  --glass-card-hover: rgba(255, 255, 255, 0.08);
+  /* 玻璃不透明度由 js/glass.js 按「质感档位 × 不透明度滑块 × 背景亮度」写入。
+     组件只消费变量，不再各自写死 rgba —— 否则调一档要改几十处。 */
+  --glass-bg: rgb(var(--panel-rgb) / var(--ad-glass-a, 0.34));
+  --glass-bg-strong: rgb(var(--panel-rgb) / var(--ad-strong-a, 0.55));
+  --glass-card: rgb(255 255 255 / var(--ad-wash-a, 0.07));
+  --glass-card-hover: rgb(255 255 255 / calc(var(--ad-wash-a, 0.07) * 1.8));
   --hairline: rgba(255, 255, 255, 0.09);
   --hairline-strong: rgba(255, 255, 255, 0.16);
 
@@ -83,10 +85,10 @@ body[data-theme="light"] {
   --bg-2: #ffffff;
 
   --panel-rgb: 252 253 255;
-  --glass-bg: rgba(255, 255, 255, 0.78);
-  --glass-bg-strong: rgba(255, 255, 255, 0.92);
-  --glass-card: rgba(20, 24, 40, 0.04);
-  --glass-card-hover: rgba(20, 24, 40, 0.08);
+  --glass-bg: rgb(var(--panel-rgb) / var(--ad-glass-a, 0.62));
+  --glass-bg-strong: rgb(var(--panel-rgb) / var(--ad-strong-a, 0.82));
+  --glass-card: rgb(20 24 40 / var(--ad-wash-a, 0.045));
+  --glass-card-hover: rgb(20 24 40 / calc(var(--ad-wash-a, 0.045) * 1.8));
   --hairline: rgba(20, 24, 40, 0.1);
   --hairline-strong: rgba(20, 24, 40, 0.18);
 

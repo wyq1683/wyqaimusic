@@ -51,7 +51,9 @@ body.sb-mini .sb-name,
 body.sb-mini .sb-nav .nav-label,
 body.sb-mini .sb-playlists,
 body.sb-mini .sb-foot .sb-link span,
-body.sb-mini .sb-version { display: none; }
+body.sb-mini .sb-version,
+body.sb-mini .sb-powered,
+body.sb-mini .sb-legal { display: none; }
 /* 折叠态必须保留折叠按钮，否则用户没有「展开」入口 */
 body.sb-mini .sb-brand { flex-wrap: wrap; justify-content: center; gap: 8px; padding-bottom: 10px; }
 body.sb-mini .sb-collapse { margin-left: 0; width: 100%; height: 22px; }
@@ -1884,7 +1886,8 @@ textarea.field-input { height: auto; padding: 10px 13px; resize: vertical; }
   body.sb-mini .sidebar { width: var(--sidebar-w); }
   body.sb-mini .sb-name, body.sb-mini .sb-collapse,
   body.sb-mini .sb-nav .nav-label, body.sb-mini .sb-playlists,
-  body.sb-mini .sb-foot .sb-link span, body.sb-mini .sb-version { display: revert; }
+  body.sb-mini .sb-foot .sb-link span, body.sb-mini .sb-version,
+  body.sb-mini .sb-powered, body.sb-mini .sb-legal { display: revert; }
   body.sb-mini .sb-nav .nav-item { justify-content: flex-start; }
 
   .nav-toggle { display: grid; }
@@ -2140,3 +2143,47 @@ body.np-landscape #npQueuePane { max-height: calc(100dvh - 150px); }
 
 /* 侧栏遮罩默认不渲染（仅移动端打开时显示） */
 .sb-scrim { display: none; }
+
+/* ==================== 11. 侧栏底部：技术支持水印 + 法律链接 ==================== */
+.sb-powered {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 6px 2px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--text-3);
+  user-select: none;
+}
+.sb-powered svg { opacity: 0.55; flex: none; }
+.sb-powered b {
+  font-weight: 700;
+  background: linear-gradient(135deg, #7cb8ff, var(--accent));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.sb-legal {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 2px 6px 4px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+.sb-legal a { color: var(--text-3); transition: color var(--dur-1); }
+.sb-legal a:hover { color: var(--accent-text); }
+.sb-dot { opacity: 0.5; }
+
+/* 登录弹窗底部条款提示 */
+.auth-legal {
+  margin-top: 10px;
+  font-size: 0.72rem;
+  line-height: 1.6;
+  color: var(--text-3);
+  text-align: center;
+}
+.auth-legal a { color: var(--accent-text); }
+.auth-legal a:hover { text-decoration: underline; }

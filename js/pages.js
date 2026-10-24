@@ -1322,6 +1322,10 @@
       '<div class="set-row"><div class="set-info"><div class="set-name">Wave 音乐播放器</div><div class="set-desc">原生 JavaScript · PHP · MySQL · 部署于 InfinityFree</div></div>' +
       '<div class="set-ctrl" style="color:var(--text-3);font-size:0.78rem">v2.1</div></div>' +
       '<div class="set-row"><div class="set-info"><div class="set-name">音源</div><div class="set-desc">网易云音乐 / QQ音乐 / Audius / 本地曲库</div></div></div>' +
+      '<a class="set-row" href="privacy.html" target="_blank" rel="noopener"><div class="set-info"><div class="set-name">隐私政策</div><div class="set-desc">我们收集什么、怎么用、如何删除</div></div>' +
+      '<span class="mr-chev">' + C.icon("external", 15) + "</span></a>" +
+      '<a class="set-row" href="terms.html" target="_blank" rel="noopener"><div class="set-info"><div class="set-name">用户条款</div><div class="set-desc">使用本站前请阅读的约定</div></div>' +
+      '<span class="mr-chev">' + C.icon("external", 15) + "</span></a>" +
       '<a class="set-row" href="https://github.com/wyq1683/wyqaimusic" target="_blank" rel="noopener"><div class="set-info"><div class="set-name">开源仓库</div><div class="set-desc">github.com/wyq1683/wyqaimusic</div></div>' +
       '<span class="mr-chev">' + C.icon("external", 15) + "</span></a>" +
       "</div></div>";

@@ -391,7 +391,8 @@
       '<div class="field"><label class="field-label">密码</label><input class="field-input" id="authPass" type="password" placeholder="至少 4 个字符" autocomplete="current-password" /></div>' +
       '<div class="field" id="codeField" hidden><label class="field-label">邮箱验证码</label><input class="field-input" id="authCode" inputmode="numeric" maxlength="6" placeholder="6 位数字" style="letter-spacing:4px;text-align:center" /></div>' +
       '<div class="field-err" id="authErr" aria-live="polite"></div>' +
-      '<button class="btn btn-ghost" id="demoLogin" style="width:100%;margin-top:4px">🎭 演示账号快速登录</button>';
+      '<button class="btn btn-ghost" id="demoLogin" style="width:100%;margin-top:4px">🎭 演示账号快速登录</button>' +
+      '<div class="auth-legal">继续即表示同意<a href="terms.html" target="_blank" rel="noopener">《用户条款》</a>与<a href="privacy.html" target="_blank" rel="noopener">《隐私政策》</a></div>';
 
     const box = modal({
       title: authTab === "login" ? "登录 Wave" : "注册 Wave",

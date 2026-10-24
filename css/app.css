@@ -321,6 +321,7 @@ body.sb-mini .sb-nav .nav-item { justify-content: center; }
 .sb-pl-add:hover { color: var(--text-1); background: var(--glass-card-hover); }
 .sb-pl-list {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -332,6 +333,9 @@ body.sb-mini .sb-nav .nav-item { justify-content: center; }
   align-items: center;
   gap: 9px;
   height: 32px;
+  /* 不能让它当 flex 子项被压缩：歌单一多，16 个 32px 的行会被挤成几像素，
+     文字全叠在一起（导入歌单后必现） */
+  flex: 0 0 32px;
   padding: 0 10px;
   border-radius: var(--r-xs);
   color: var(--text-2);

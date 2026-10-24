@@ -34,28 +34,58 @@
      mid    = 默认，能看见背景轮廓但被柔化
      frost  = 磨砂，背景糊成色块，可读性最稳 */
   const STYLE_K = { clear: 0.55, mid: 1, frost: 1.7 };
+  // 档位的默认模糊 / 饱和度；用户单点滑块后会覆盖这两项
+  const STYLE_BLUR = { clear: 12, mid: 30, frost: 46 };
+  const STYLE_SAT = { clear: 125, mid: 170, frost: 190 };
 
-  /* 用户旋钮：质感档位 + 不透明度滑块（0-100，默认 50 → 系数 1.0）。
-     滑块是分段映射而不是线性：50 正好是 1.0（不动基准），
-     往下到 0.35（几乎全透），往上是 2.2（接近实心）。
-     线性映射会让「拉到 100」只有 1.55 倍，用户会觉得滑块没劲。 */
-  const ui = { style: "mid", level: 50 };
+  /* 用户旋钮。默认值：半透档、不透明度 50（系数 1.0）、模糊跟随档位。 */
+  const ui = { style: "mid", level: 50, blur: 30, sat: 170, rim: 100, surface: 100 };
 
+  /* 不透明度滑块是分段映射，不是线性：
+     0 → 0（真全透，只剩模糊与边缘），50 → 1.0（基准），100 → 2.2（接近实心）。
+     线性映射会让「拉到 100」只有 1.55 倍，滑块会显得没劲；
+     而 0 必须是 0 —— 用户要的是「全透」，不是「很透」。 */
   function levelK() {
-    const t = clamp(ui.level, 0, 100) / 50; // 0 … 2，50 刚好 1
-    return t <= 1 ? 0.35 + t * 0.65 : 1 + (t - 1) * 1.2;
+    const t = clamp(ui.level, 0, 100) / 50;
+    return t <= 1 ? t : 1 + (t - 1) * 1.2;
   }
   function styleK() { return STYLE_K[ui.style] || 1; }
   function themeK() { return (document.body && document.body.dataset.theme === "light") ? 1.5 : 1; }
 
-  function setStyle(style, level) {
+  function applyTuningCss() {
+    root.style.setProperty("--glass-blur", clamp(ui.blur, 0, 60) + "px");
+    // 导航面板那点"额外实体"要跟着不透明度系数走，否则拉到 0 时侧栏还剩 0.10
+    root.style.setProperty("--level-k", levelK().toFixed(3));
+    root.style.setProperty("--glass-sat", (clamp(ui.sat, 100, 220) / 100).toFixed(2));
+    root.style.setProperty("--glass-rim", (clamp(ui.rim, 0, 150) / 100).toFixed(2));
+    root.style.setProperty("--surface-k", (clamp(ui.surface, 0, 100) / 100).toFixed(2));
+  }
+
+  function setStyle(style, level, keepBlur) {
+    const prev = ui.style;
     if (style) ui.style = STYLE_K[style] ? style : "mid";
     if (typeof level === "number") ui.level = clamp(level, 0, 100);
     if (document.body) {
       document.body.classList.remove("glass-clear", "glass-mid", "glass-frost");
       document.body.classList.add("glass-" + ui.style);
     }
+    // 切换档位时把模糊/饱和重置成该档默认值（用户手动调过的话由 setTuning 再覆盖）
+    if (!keepBlur && ui.style !== prev) {
+      ui.blur = STYLE_BLUR[ui.style];
+      ui.sat = STYLE_SAT[ui.style];
+    }
+    applyTuningCss();
     // 档位变了要按新系数立刻重算，不能等下一次采样
+    write(curLum, true);
+  }
+
+  function setTuning(t) {
+    if (!t) return;
+    if (typeof t.blur === "number") ui.blur = t.blur;
+    if (typeof t.sat === "number") ui.sat = t.sat;
+    if (typeof t.rim === "number") ui.rim = t.rim;
+    if (typeof t.surface === "number") ui.surface = t.surface;
+    applyTuningCss();
     write(curLum, true);
   }
 
@@ -74,9 +104,10 @@
     // 用户要的是能看见背景的玻璃。基准压到 0.14~0.56，再乘档位与滑块。
     const eff = curLum;
     const k = styleK() * levelK() * themeK();
-    const glass = clamp((0.14 + eff * 0.42) * k, 0.04, 0.96);
-    const strong = clamp((0.24 + eff * 0.50) * k, 0.06, 0.97);
-    const surface = clamp((0.34 + eff * 0.42) * k, 0.3, 0.96);
+    const glass = clamp((0.14 + eff * 0.42) * k, 0, 0.96);
+    const strong = clamp((0.24 + eff * 0.50) * k, 0, 0.97);
+    // 内容区单独一个浓度系数：玻璃全透时，内容区可以跟着一起透（用户要的「全透」）
+    const surface = clamp((0.34 + eff * 0.42) * k * (ui.surface / 100), 0, 0.96);
     const wash = clamp(0.04 + eff * 0.06, 0.03, 0.12);
     // 遮罩不吃档位系数：它是可读性的地板，不能被"通透"档一起拉低
     const veil = clamp(eff * 0.46, 0.02, 0.46);
@@ -87,7 +118,11 @@
     root.style.setProperty("--ad-wash-a", wash.toFixed(3));
     root.style.setProperty("--ad-veil-a", veil.toFixed(3));
     root.style.setProperty("--ad-lum", curLum.toFixed(3));
-    if (document.body) document.body.classList.toggle("ad-bright", eff > 0.55);
+    if (document.body) {
+      document.body.classList.toggle("ad-bright", eff > 0.55);
+      // 几乎全透时文字没有底可依，切到"直接压在画面上"的那套处理（投影 + 描边）
+      document.body.classList.toggle("ad-transparent", glass < 0.07);
+    }
     return { glass: glass, strong: strong, card: wash, surface: surface, veil: veil, lum: curLum };
   }
 
@@ -191,9 +226,16 @@
   function init() {
     try {
       const st = global.App.Core && global.App.Core.getSettings();
-      if (st) { ui.style = STYLE_K[st.glassStyle] ? st.glassStyle : "mid"; ui.level = typeof st.glass === "number" ? st.glass : 50; }
+      if (st) {
+        ui.style = STYLE_K[st.glassStyle] ? st.glassStyle : "mid";
+        ui.level = typeof st.glass === "number" ? st.glass : 50;
+        ui.blur = typeof st.glassBlur === "number" ? st.glassBlur : STYLE_BLUR[ui.style];
+        ui.sat = typeof st.glassSat === "number" ? st.glassSat : STYLE_SAT[ui.style];
+        ui.rim = typeof st.glassRim === "number" ? st.glassRim : 100;
+        ui.surface = typeof st.surfaceLevel === "number" ? st.surfaceLevel : 100;
+      }
     } catch (e) { /* 用默认档 */ }
-    setStyle(ui.style, ui.level);
+    setStyle(ui.style, ui.level, true);
     refresh(true);
     // 视频壁纸的元数据到得晚，loadeddata 时补一次采样
     document.addEventListener("visibilitychange", () => {
@@ -203,7 +245,8 @@
 
   global.App = global.App || {};
   global.App.Glass = {
-    init, write, refresh, watchVideo, stopVideo, setStyle,
+    init, write, refresh, watchVideo, stopVideo, setStyle, setTuning,
+    defaultsOf: (st) => ({ glassBlur: STYLE_BLUR[st] || 30, glassSat: STYLE_SAT[st] || 170 }),
     measureImage, measureGradient, pixelsLum,
     get lum() { return curLum; },
     get style() { return Object.assign({}, ui); },

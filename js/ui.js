@@ -866,6 +866,14 @@
       "</div></div>" +
       '<div class="look-block"><div class="look-label">玻璃不透明度<span class="look-val" id="lookGlassVal">' + s.glass + "%</span></div>" +
       '<input type="range" class="range" id="lookGlass" min="0" max="100" value="' + s.glass + '" aria-label="玻璃不透明度" /></div>' +
+      '<div class="look-block"><div class="look-label">玻璃模糊<span class="look-val" id="lookBlur2Val">' + s.glassBlur + "px</span></div>" +
+      '<input type="range" class="range" id="lookBlur2" min="0" max="60" value="' + s.glassBlur + '" aria-label="玻璃模糊" /></div>' +
+      '<div class="look-block"><div class="look-label">背景饱和<span class="look-val" id="lookSatVal">' + s.glassSat + "%</span></div>" +
+      '<input type="range" class="range" id="lookSat" min="100" max="220" value="' + s.glassSat + '" aria-label="背景饱和" /></div>' +
+      '<div class="look-block"><div class="look-label">边缘高光<span class="look-val" id="lookRimVal">' + s.glassRim + "%</span></div>" +
+      '<input type="range" class="range" id="lookRim" min="0" max="150" value="' + s.glassRim + '" aria-label="边缘高光" /></div>' +
+      '<div class="look-block"><div class="look-label">内容区底色<span class="look-val" id="lookSurfVal">' + s.surfaceLevel + "%</span></div>" +
+      '<input type="range" class="range" id="lookSurf" min="0" max="100" value="' + s.surfaceLevel + '" aria-label="内容区底色" /></div>' +
       '<div class="look-block"><div class="look-label">本地壁纸<span class="look-val">' +
       (() => {
         const w = wpState();
@@ -907,9 +915,20 @@
       $("#lookBlurVal", pane).textContent = blur.value + "px";
     });
     $$("[data-gstyle]", pane).forEach((b) => b.addEventListener("click", () => {
-      C.saveSettings({ glassStyle: b.dataset.gstyle });
+      const v = b.dataset.gstyle;
+      C.saveSettings(Object.assign({ glassStyle: v }, global.App.Glass.defaultsOf(v)));
       refresh();
     }));
+    [["lookBlur2", "glassBlur", "px"], ["lookSat", "glassSat", "%"], ["lookRim", "glassRim", "%"], ["lookSurf", "surfaceLevel", "%"]]
+      .forEach(([id, key, unit]) => {
+        const input = $("#" + id, pane);
+        if (!input) return;
+        input.addEventListener("input", () => {
+          C.saveSettings({ [key]: parseInt(input.value, 10) });
+          const lab = $("#" + id + "Val", pane);
+          if (lab) lab.textContent = input.value + unit;
+        });
+      });
     const glass = $("#lookGlass", pane);
     if (glass) glass.addEventListener("input", () => {
       C.saveSettings({ glass: parseInt(glass.value, 10) });

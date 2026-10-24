@@ -1321,8 +1321,20 @@
       '<button class="chip' + (s.glassStyle === "frost" ? " active" : "") + '" data-gstyle="frost">磨砂</button>' +
       "</div></div></div>" +
 
-      '<div class="set-row"><div class="set-info"><div class="set-name">玻璃不透明度</div><div class="set-desc">数值越小越透明；环境越亮会自动变实一点</div></div>' +
+      '<div class="set-row"><div class="set-info"><div class="set-name">玻璃不透明度</div><div class="set-desc">0 = 全透（只剩模糊与边缘），50 = 标准，100 = 接近实心</div></div>' +
       '<div class="set-ctrl"><input type="range" class="range" id="stGlass" min="0" max="100" value="' + s.glass + '" /><span class="range-val" id="stGlassVal">' + s.glass + "%</span></div></div>" +
+
+      '<div class="set-row"><div class="set-info"><div class="set-name">玻璃模糊</div><div class="set-desc">背景被磨掉多少细节。0 时玻璃几乎只剩一层描边</div></div>' +
+      '<div class="set-ctrl"><input type="range" class="range" id="stGlassBlur" min="0" max="60" value="' + s.glassBlur + '" /><span class="range-val" id="stGlassBlurVal">' + s.glassBlur + "px</span></div></div>" +
+
+      '<div class="set-row"><div class="set-info"><div class="set-name">背景饱和</div><div class="set-desc">模糊之后要补饱和，否则背景只剩一团灰</div></div>' +
+      '<div class="set-ctrl"><input type="range" class="range" id="stGlassSat" min="100" max="220" value="' + s.glassSat + '" /><span class="range-val" id="stGlassSatVal">' + s.glassSat + "%</span></div></div>" +
+
+      '<div class="set-row"><div class="set-info"><div class="set-name">边缘高光</div><div class="set-desc">玻璃的厚度感来自边缘：顶部高光 + 上冷下暖的色散</div></div>' +
+      '<div class="set-ctrl"><input type="range" class="range" id="stGlassRim" min="0" max="150" value="' + s.glassRim + '" /><span class="range-val" id="stGlassRimVal">' + s.glassRim + "%</span></div></div>" +
+
+      '<div class="set-row"><div class="set-info"><div class="set-name">内容区底色</div><div class="set-desc">列表和文字底下那层。0 时内容区也全透，壁纸直接穿过来</div></div>' +
+      '<div class="set-ctrl"><input type="range" class="range" id="stSurface" min="0" max="100" value="' + s.surfaceLevel + '" /><span class="range-val" id="stSurfaceVal">' + s.surfaceLevel + "%</span></div></div>" +
       "</div></div>" +
 
       '<div class="set-section"><div class="sec-head"><div class="sec-title">本地壁纸</div><div class="sec-sub">用本地视频目录做动态背景</div></div>' +
@@ -1437,13 +1449,28 @@
       C.saveSettings({ glass: parseInt(e.target.value, 10) });
       $("#stGlassVal", el).textContent = e.target.value + "%";
     });
-    // 玻璃质感三档
+    // 玻璃质感三档：切档时把模糊/饱和一起换成该档默认值，滑块跟着跳
     $$("[data-gstyle]", el).forEach((b) =>
       b.addEventListener("click", () => {
-        C.saveSettings({ glassStyle: b.dataset.gstyle });
+        const v = b.dataset.gstyle;
+        const dflt = global.App.Glass.defaultsOf(v);
+        C.saveSettings({ glassStyle: v, glassBlur: dflt.glassBlur, glassSat: dflt.glassSat });
         $$("[data-gstyle]", el).forEach((x) => x.classList.toggle("active", x === b));
+        const bl = $("#stGlassBlur", el), sa = $("#stGlassSat", el);
+        if (bl) { bl.value = dflt.glassBlur; $("#stGlassBlurVal", el).textContent = dflt.glassBlur + "px"; }
+        if (sa) { sa.value = dflt.glassSat; $("#stGlassSatVal", el).textContent = dflt.glassSat + "%"; }
       })
     );
+    // 玻璃细调：模糊 / 饱和 / 边缘高光 / 内容区底色
+    [["stGlassBlur", "glassBlur", "px"], ["stGlassSat", "glassSat", "%"], ["stGlassRim", "glassRim", "%"], ["stSurface", "surfaceLevel", "%"]]
+      .forEach(([id, key, unit]) => {
+        const input = $("#" + id, el);
+        if (!input) return;
+        input.addEventListener("input", (e) => {
+          C.saveSettings({ [key]: parseInt(e.target.value, 10) });
+          $("#" + id + "Val", el).textContent = e.target.value + unit;
+        });
+      });
     // 音量增强
     $$("[data-boost]", el).forEach((b) =>
       b.addEventListener("click", () => {

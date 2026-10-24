@@ -572,8 +572,12 @@
     theme: "dark",
     accent: "",            // 空 = 跟随歌曲封面
     bgBlur: 6,
-    glass: 50,             // 玻璃不透明度 0-100（50 = 标准）
+    glass: 50,             // 玻璃不透明度 0-100（0 = 全透，50 = 标准）
     glassStyle: "mid",     // 玻璃质感：clear 通透 | mid 半透 | frost 磨砂
+    glassBlur: 30,         // 背景模糊 px（切换质感档位时重置为该档默认值）
+    glassSat: 170,         // 背景饱和度 %（100-200）
+    glassRim: 100,         // 边缘高光 / 色散强度 %
+    surfaceLevel: 100,     // 内容区底色浓度 %（0 = 内容区也全透）
     boost: 1,
     haptics: true,
     bgPreset: "aurora",
@@ -593,7 +597,12 @@
     document.body.dataset.theme = s.theme;
     document.body.classList.toggle("sb-mini", !!s.sidebarMini);
     // 玻璃质感档位 + 不透明度旋钮（js/glass.js 会据此重算所有 --ad-* 变量）
-    if (global.App.Glass) global.App.Glass.setStyle(s.glassStyle || "mid", typeof s.glass === "number" ? s.glass : 50);
+    if (global.App.Glass) {
+      global.App.Glass.setStyle(s.glassStyle || "mid", typeof s.glass === "number" ? s.glass : 50);
+      global.App.Glass.setTuning({
+        blur: s.glassBlur, sat: s.glassSat, rim: s.glassRim, surface: s.surfaceLevel,
+      });
+    }
     if (s.accent) setAccent(s.accent);
     else if (global.App.Player && global.App.Player.current) applySongAccent(global.App.Player.current.song);
     // 图片类背景（桌面/移动/自定义）识别出来打标，CSS 靠 body.bg-photo 走自适应玻璃

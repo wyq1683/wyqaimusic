@@ -38,9 +38,9 @@
      ③ 底部内阴影制造"这块玻璃有多厚"
    不透明度由 --ad-* 控制（js/glass.js），这里只管光影。
    三档质感对应三组 blur/saturate，用户可在设置里切。 */
-body.glass-clear { --glass-blur: 12px; --glass-sat: 1.25; }
-body.glass-mid   { --glass-blur: 30px; --glass-sat: 1.7; }
-body.glass-frost { --glass-blur: 46px; --glass-sat: 1.9; }
+/* 注意：模糊与饱和度由 js/glass.js 直接写到 :root 的行内变量。
+   这里不要再声明 —— body 上的声明会盖掉 root 的行内值，
+   表现就是「滑块拖了没反应」。body 上的档位类只作为钩子保留。 */
 
 /* 顶栏原来是完全透明的，压在壁纸上没有任何"面"，看着就是一张图。
    给它玻璃底 —— 它是控件层（导航 + 搜索），本来就该是一块玻璃。 */
@@ -53,8 +53,8 @@ body.glass-frost { --glass-blur: 46px; --glass-sat: 1.9; }
 
 /* 导航面板比浮层再多一点实体。侧栏与播放条承载常驻文字（导航项、歌名），
    透视的代价比卡片高 —— 卡片的字有人会盯着看，导航的字是扫一眼就要认出来。 */
-.sidebar { --glass-bg: rgb(var(--panel-rgb) / calc(var(--ad-glass-a, 0.34) + 0.10)); }
-.player-bar { --glass-bg-strong: rgb(var(--panel-rgb) / calc(var(--ad-strong-a, 0.55) + 0.10)); }
+.sidebar { --glass-bg: rgb(var(--panel-rgb) / calc(var(--ad-glass-a, 0.34) + 0.10 * var(--level-k, 1))); }
+.player-bar { --glass-bg-strong: rgb(var(--panel-rgb) / calc(var(--ad-strong-a, 0.55) + 0.10 * var(--level-k, 1))); }
 /* 抽屉和弹窗背后是"别的文字"，玻璃再透就是重影 —— 那不是设计感，是读不清。
    这两个不吃通透档位，永远保持一块能读的面。 */
 .drawer, .modal {
@@ -67,18 +67,18 @@ body.glass-frost { --glass-blur: 46px; --glass-sat: 1.9; }
 .topbar,
 .player-bar {
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.14),
-    inset 1px 0 0 rgba(180, 210, 255, 0.10),
-    inset -1px 0 0 rgba(255, 195, 165, 0.07),
-    inset 0 -22px 36px -30px rgba(0, 0, 0, 0.55);
+    inset 0 1px 0 rgba(255, 255, 255, calc(0.14 * var(--glass-rim, 1))),
+    inset 1px 0 0 rgba(180, 210, 255, calc(0.10 * var(--glass-rim, 1))),
+    inset -1px 0 0 rgba(255, 195, 165, calc(0.07 * var(--glass-rim, 1))),
+    inset 0 -22px 36px -30px rgba(0, 0, 0, calc(0.55 * var(--glass-rim, 1)));
 }
 /* 浅色主题色散反过来：玻璃越薄，冷色散越不明显 */
 body[data-theme="light"] .sidebar,
 body[data-theme="light"] .topbar,
 body[data-theme="light"] .player-bar {
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.75),
-    inset 0 -22px 36px -30px rgba(30, 40, 70, 0.12);
+    inset 0 1px 0 rgba(255, 255, 255, calc(0.75 * var(--glass-rim, 1))),
+    inset 0 -22px 36px -30px rgba(30, 40, 70, calc(0.12 * var(--glass-rim, 1)));
 }
 
 /* ==================== 2. 侧边导航 ==================== */
@@ -2176,7 +2176,7 @@ body[data-theme="light"].has-wallpaper {
    这里只做一层「看得出这块区域更暗」的底色，没有形状。 */
 body.has-wallpaper .view,
 body.bg-photo .view {
-  background: rgb(var(--panel-rgb) / var(--ad-surface-a, 0.55));
+  background: rgb(var(--panel-rgb) / calc(var(--ad-surface-a, 0.55) * var(--surface-k, 1)));
   backdrop-filter: blur(24px) saturate(1.15);
   -webkit-backdrop-filter: blur(24px) saturate(1.15);
 }
@@ -2225,6 +2225,31 @@ body.bg-photo:not(.has-wallpaper) {
 body[data-theme="light"].bg-photo:not(.has-wallpaper) {
   --hairline: rgba(20, 24, 40, 0.12);
   --hairline-strong: rgba(20, 24, 40, 0.22);
+}
+
+/* 玻璃拉到全透：界面没有底了，文字得有东西可依。
+   kit 的 on-scene 做法 —— 投影 + 极淡描边，比再盖一层压暗划算。 */
+body.ad-transparent .sidebar,
+body.ad-transparent .topbar,
+body.ad-transparent .player-bar,
+body.ad-transparent .view {
+  /* 没有底了，次级文字必须提亮，否则灰字直接消失在画面上 */
+  --text-2: #e8ebf4;
+  --text-3: #ccd2e2;
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.55), 0 0 2px rgba(0, 0, 0, 0.4);
+}
+/* 输入框没有底色时，靠描边才看得出"这里能点" */
+body.ad-transparent .search-trigger,
+body.ad-transparent .palette-input-row,
+body.ad-transparent .icon-btn,
+body.ad-transparent .chip {
+  border-color: rgba(255, 255, 255, 0.28);
+}
+body[data-theme="light"].ad-transparent .sidebar,
+body[data-theme="light"].ad-transparent .topbar,
+body[data-theme="light"].ad-transparent .player-bar,
+body[data-theme="light"].ad-transparent .view {
+  text-shadow: 0 1px 10px rgba(255, 255, 255, 0.75), 0 0 2px rgba(255, 255, 255, 0.6);
 }
 
 /* 极亮背景（纯白画面）时的文字保险：正文和次级文字各抬一档 */

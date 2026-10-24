@@ -2176,9 +2176,19 @@ body[data-theme="light"].has-wallpaper {
    这里只做一层「看得出这块区域更暗」的底色，没有形状。 */
 body.has-wallpaper .view,
 body.bg-photo .view {
-  background: rgb(var(--panel-rgb) / calc(var(--ad-surface-a, 0.55) * var(--surface-k, 1)));
-  backdrop-filter: blur(24px) saturate(1.15);
-  -webkit-backdrop-filter: blur(24px) saturate(1.15);
+  /* --ad-surface-a 已经是「基准 × 质感 × 不透明度 × 内容区浓度」算完的最终值，
+     这里不要再乘 --surface-k，否则浓度会被平方（30% 变成 9%） */
+  background: rgb(var(--panel-rgb) / var(--ad-surface-a, 0.55));
+  /* 模糊强度跟垫层浓度走：垫层越淡，越不该把画面糊掉。
+     固定 24px 的话，把「内容区底色」拉到 0 之后仍然是一整块模糊，等于没透。 */
+  backdrop-filter: blur(min(24px, calc(30px * var(--ad-surface-eff, 0.55)))) saturate(1.15);
+  -webkit-backdrop-filter: blur(min(24px, calc(30px * var(--ad-surface-eff, 0.55)))) saturate(1.15);
+}
+/* 垫层归零：彻底关掉，一点模糊都不留 */
+body.ad-nosurface .view {
+  background: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 /* 页面本身不加任何装饰；正在播放页连底色都不要，壁纸直接当舞台 */
 body.has-wallpaper .view > .page,
@@ -2229,6 +2239,16 @@ body[data-theme="light"].bg-photo:not(.has-wallpaper) {
 
 /* 玻璃拉到全透：界面没有底了，文字得有东西可依。
    kit 的 on-scene 做法 —— 投影 + 极淡描边，比再盖一层压暗划算。 */
+/* 玻璃 alpha 归零时，模糊也必须一起停。
+   留着一层 blur 的"全透明"不是全透明，是一块看不见的磨砂玻璃。 */
+body.ad-transparent .sidebar,
+body.ad-transparent .topbar,
+body.ad-transparent .player-bar,
+body.ad-transparent .drawer,
+body.ad-transparent .modal {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
 body.ad-transparent .sidebar,
 body.ad-transparent .topbar,
 body.ad-transparent .player-bar,

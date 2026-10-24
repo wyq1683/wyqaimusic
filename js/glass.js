@@ -115,6 +115,9 @@
     root.style.setProperty("--ad-glass-a", glass.toFixed(3));
     root.style.setProperty("--ad-strong-a", strong.toFixed(3));
     root.style.setProperty("--ad-surface-a", surface.toFixed(3));
+    // 内容区垫层的"实际浓度"，模糊强度跟着它走 ——
+    // 底色拉到 0 时如果还留着 blur(24px)，就是一块看不见的毛玻璃，照样糊一片。
+    root.style.setProperty("--ad-surface-eff", surface.toFixed(3));
     root.style.setProperty("--ad-wash-a", wash.toFixed(3));
     root.style.setProperty("--ad-veil-a", veil.toFixed(3));
     root.style.setProperty("--ad-lum", curLum.toFixed(3));
@@ -122,6 +125,8 @@
       document.body.classList.toggle("ad-bright", eff > 0.55);
       // 几乎全透时文字没有底可依，切到"直接压在画面上"的那套处理（投影 + 描边）
       document.body.classList.toggle("ad-transparent", glass < 0.07);
+      // 垫层没了就不该再模糊，否则透了个寂寞
+      document.body.classList.toggle("ad-nosurface", surface < 0.02);
     }
     return { glass: glass, strong: strong, card: wash, surface: surface, veil: veil, lum: curLum };
   }

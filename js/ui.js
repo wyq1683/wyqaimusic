@@ -860,6 +860,10 @@
       '<input type="range" class="range" id="lookBlur" min="0" max="30" value="' + s.bgBlur + '" aria-label="背景模糊" /></div>' +
       '<div class="look-block"><div class="look-label">界面透明度<span class="look-val" id="lookGlassVal">' + s.glass + "%</span></div>" +
       '<input type="range" class="range" id="lookGlass" min="0" max="100" value="' + s.glass + '" aria-label="界面透明度" /></div>' +
+      '<div class="look-block"><div class="look-label">本地壁纸<span class="look-val">' +
+      (wpState().count ? wpState().count + " 个视频" : "未添加") + "</span></div>" +
+      '<div class="wp-actions"><button class="btn btn-ghost" data-lookwp="add" style="height:32px">' + C.icon("plus", 13) + " 添加壁纸目录</button>" +
+      '<button class="btn btn-ghost" data-lookwp="settings" style="height:32px">全部设置</button></div></div>' +
       '<div class="look-tip">' + C.icon("sparkle", 13) + " 正在播放页支持全屏沉浸与横屏模式</div>";
 
     const refresh = () => renderLookPane();
@@ -896,6 +900,23 @@
       C.saveSettings({ glass: parseInt(glass.value, 10) });
       $("#lookGlassVal", pane).textContent = glass.value + "%";
     });
+    // 工作台里的壁纸入口：添加目录 / 跳设置页
+    $$("[data-lookwp]", pane).forEach((b) => b.addEventListener("click", async () => {
+      if (b.dataset.lookwp === "settings") { location.hash = "#/settings"; return; }
+      const W = global.App.Wallpaper;
+      if (!W) return;
+      let r = await W.pickDir();
+      if (!r.ok && r.error === "NO_API") {
+        r = await W.pickDirFallback();
+        if (r.ok) { toast("已加载 " + r.count + " 个视频（刷新后需重选）", "success"); W.saveCfg({ mode: "dynamic" }); }
+      } else if (r.ok) {
+        toast(r.count ? "已连接「" + r.name + "」，识别到 " + r.count + " 个视频" : "目录里没有视频文件", r.count ? "success" : "error");
+        if (r.count) W.saveCfg({ mode: "dynamic" });
+      } else if (!r.canceled) {
+        toast(r.error || "添加失败", "error");
+      }
+      refresh();
+    }));
   }
 
   function renderQueuePane() {
@@ -1228,6 +1249,129 @@
     renderQueuePane();
   }
 
+  /* ==================== 壁纸面板（设置页 / 工作台共用） ==================== */
+  function wpState() {
+    const W = global.App.Wallpaper;
+    return W ? W.getState() : { cfg: {}, dirs: [], count: 0, supported: false, error: "", scanning: false };
+  }
+  function wallpaperPanelHTML() {
+    const st = wpState();
+    const c = st.cfg || {};
+    const mode = c.mode || "off";
+    const on = mode !== "off" && st.count > 0;
+    const seg = (k, cur, opts, disabled) =>
+      '<div class="wp-seg" data-seg="' + k + '">' +
+      opts.map((o) => '<button type="button" data-wp="' + k + ":" + o.v + '"' +
+        (cur === o.v ? ' class="active"' : "") + (disabled ? " disabled" : "") + ">" + o.t + "</button>").join("") +
+      "</div>";
+
+    let html = '<div class="wp-status' + (on ? " on" : "") + '"><span class="wp-dot"></span><span>' +
+      (st.supported ? "" : "当前浏览器不支持目录访问（需 Chrome / Edge 86+）") +
+      (st.supported && st.scanning ? "正在扫描目录…" : "") +
+      (st.supported && !st.scanning && st.count ? "已连接 · 识别到 " + st.count + " 个视频壁纸" + (st.current ? " · 当前：" + esc(st.current) : "") : "") +
+      (st.supported && !st.scanning && !st.count && !st.error && !st.dirs.length ? "尚未添加目录" : "") +
+      (st.error ? esc(st.error) : "") +
+      "</span></div>";
+
+    if (st.dirs.length) {
+      html += '<div class="wp-dirs">' + st.dirs.map((d) =>
+        '<div class="wp-dir">' + C.icon("library", 13) + '<span class="wp-dir-name">' + esc(d.name) +
+        (d.session ? '<span class="wp-dir-flag"> 仅本次会话</span>' : "") +
+        (d.needPerm ? '<span class="wp-dir-flag"> 需重新授权</span>' : "") +
+        "</span></div>").join("") + "</div>";
+    }
+
+    html += '<div class="look-block" style="margin-top:14px"><div class="look-label">渲染模式</div>' +
+      seg("mode", mode, [{ v: "dynamic", t: "动态" }, { v: "static", t: "静态帧" }, { v: "off", t: "关闭壁纸" }], !st.count) +
+      "</div>";
+    html += '<div class="look-block"><div class="look-label">适配方式</div>' +
+      seg("fit", c.fit || "cover", [{ v: "cover", t: "满屏裁剪" }, { v: "contain", t: "完整缩放" }, { v: "fill", t: "拉伸铺满" }], false) +
+      "</div>";
+    html += '<div class="look-block"><div class="look-label">壁纸暗化<span class="look-val" data-wpv="dim">' + (c.dim ?? 25) + "%</span></div>" +
+      '<input type="range" class="range" data-wpr="dim" min="0" max="100" value="' + (c.dim ?? 25) + '" aria-label="壁纸暗化" /></div>';
+    html += '<div class="look-block"><div class="look-label">壁纸不透明度<span class="look-val" data-wpv="opacity">' + (c.opacity ?? 100) + "%</span></div>" +
+      '<input type="range" class="range" data-wpr="opacity" min="10" max="100" value="' + (c.opacity ?? 100) + '" aria-label="壁纸不透明度" /></div>';
+    html += '<div class="look-block"><div class="look-label">壁纸模糊<span class="look-val" data-wpv="blur">' + (c.blur ?? 0) + "px</span></div>" +
+      '<input type="range" class="range" data-wpr="blur" min="0" max="30" value="' + (c.blur ?? 0) + '" aria-label="壁纸模糊" /></div>';
+
+    html += '<div class="look-block"><div class="look-label">窗口隐藏时暂停</div>' +
+      '<button class="switch' + (c.pauseHidden !== false ? " on" : "") + '" data-wpt="pauseHidden" role="switch" aria-checked="' + (c.pauseHidden !== false) + '" aria-label="窗口隐藏时暂停"></button></div>';
+    html += '<div class="look-block"><div class="look-label">壁纸声音</div>' +
+      '<button class="switch' + (c.sound ? " on" : "") + '" data-wpt="sound" role="switch" aria-checked="' + (c.sound ? "true" : "false") + '" aria-label="壁纸声音"></button></div>';
+
+    html += '<div class="wp-actions">' +
+      '<button class="btn btn-primary" data-wpact="add" style="height:32px">' + C.icon("plus", 13) + " 添加目录</button>" +
+      (st.needPerm ? '<button class="btn btn-ghost" data-wpact="reauth" style="height:32px">重新授权</button>' : "") +
+      (st.count ? '<button class="btn btn-ghost" data-wpact="next" style="height:32px">换一个</button>' : "") +
+      (st.dirs.length ? '<button class="btn btn-ghost" data-wpact="rescan" style="height:32px">重新扫描</button>' : "") +
+      (st.dirs.length ? '<button class="btn btn-danger" data-wpact="clear" style="height:32px">清除</button>' : "") +
+      "</div>";
+    html += '<div class="wp-hint">' + C.icon("sparkle", 12) + " 选择存放 mp4 / webm 的目录；也可以直接选 Wallpaper Engine 的壁纸库目录（Steam → steamapps → workshop → content → 431960），会自动识别子目录里的视频项目。" +
+      "<br>场景壁纸（scene.pkg）与网页壁纸需要 Wallpaper Engine 自身的渲染器，浏览器无法加载，请改用视频壁纸。" +
+      "<br>浏览器安全限制：每次重新打开页面需要点一次目录授权，无法像桌面客户端那样记住。" +
+      "</div>";
+    return html;
+  }
+
+  function wireWallpaperPanel(root, refresh) {
+    const W = global.App.Wallpaper;
+    if (!W) return;
+    $$("[data-wp]", root).forEach((b) => {
+      b.addEventListener("click", () => {
+        const [k, v] = b.dataset.wp.split(":");
+        W.saveCfg({ [k]: v });
+        if (refresh) refresh();
+      });
+    });
+    $$("[data-wpr]", root).forEach((r) => {
+      r.addEventListener("input", () => {
+        const k = r.dataset.wpr;
+        const val = parseInt(r.value, 10);
+        W.saveCfg({ [k]: val });
+        const lab = $('[data-wpv="' + k + '"]', root);
+        if (lab) lab.textContent = val + (k === "blur" ? "px" : "%");
+      });
+    });
+    $$("[data-wpt]", root).forEach((s) => {
+      s.addEventListener("click", () => {
+        const k = s.dataset.wpt;
+        const on = !s.classList.contains("on");
+        W.saveCfg({ [k]: on });
+        s.classList.toggle("on", on);
+        s.setAttribute("aria-checked", on ? "true" : "false");
+      });
+    });
+    $$("[data-wpact]", root).forEach((b) => {
+      b.addEventListener("click", async () => {
+        const act = b.dataset.wpact;
+        if (act === "add") {
+          let r = await W.pickDir();
+          if (!r.ok && r.error === "NO_API") {
+            r = await W.pickDirFallback();
+            if (r.ok) toast("已加载 " + r.count + " 个视频（刷新后需重选）", "success");
+          } else if (r.ok) {
+            toast(r.count ? "已连接「" + r.name + "」，识别到 " + r.count + " 个视频" : "目录里没有视频文件", r.count ? "success" : "error");
+            if (r.count) W.saveCfg({ mode: "dynamic" });
+          } else if (!r.canceled) {
+            toast(r.error || "添加失败", "error");
+          }
+        } else if (act === "reauth") {
+          const ok = await W.reauthorize();
+          toast(ok ? "已恢复访问" : "授权未通过", ok ? "success" : "error");
+        } else if (act === "next") {
+          W.next();
+        } else if (act === "rescan") {
+          const n = await W.rescan();
+          toast("扫描完成 · " + n + " 个视频", "success");
+        } else if (act === "clear") {
+          await W.clearDirs();
+          toast("已移除壁纸目录");
+        }
+        if (refresh) refresh();
+      });
+    });
+  }
+
   global.App.UI = {
     init,
     coverStyle, coverHTML, smallCover,
@@ -1236,5 +1380,6 @@
     openPalette, openAuthModal, openPlaylistPicker, openShareModal, openSongInfo, songActions,
     renderNav, renderSidebarPlaylists, renderUser, refreshCurrentView, updateSocialBadge,
     toggleDrawer, renderDrawer,
+    wallpaperPanelHTML, wireWallpaperPanel,
   };
 })(window);

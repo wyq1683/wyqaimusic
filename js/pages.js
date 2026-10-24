@@ -1318,6 +1318,9 @@
       '<div class="set-ctrl"><input type="range" class="range" id="stGlass" min="0" max="100" value="' + s.glass + '" /><span class="range-val" id="stGlassVal">' + s.glass + "%</span></div></div>" +
       "</div></div>" +
 
+      '<div class="set-section"><div class="sec-head"><div class="sec-title">本地壁纸</div><div class="sec-sub">用本地视频目录做动态背景</div></div>' +
+      '<div class="set-card"><div class="set-row" style="display:block" id="stWallpaper">' + UI().wallpaperPanelHTML() + "</div></div></div>" +
+
       '<div class="set-section"><div class="sec-head"><div class="sec-title">播放</div></div><div class="set-card">' +
       '<div class="set-row"><div class="set-info"><div class="set-name">音量增强</div><div class="set-desc">通过 Web Audio 增益突破 100% 音量上限</div></div>' +
       '<div class="set-ctrl"><div class="chip-row" id="stBoost">' +
@@ -1438,6 +1441,15 @@
       })
     );
     P().setBoost(s.boost);
+    // 本地壁纸面板
+    const wpBox = $("#stWallpaper", el);
+    if (wpBox && UI().wireWallpaperPanel) {
+      UI().wireWallpaperPanel(wpBox, () => {
+        const keep = document.getElementById("view") ? document.getElementById("view").scrollTop : 0;
+        global.App.Router.refresh();
+        requestAnimationFrame(() => { const v = document.getElementById("view"); if (v) v.scrollTop = keep; });
+      });
+    }
     // 触感
     $("#stHaptic", el).addEventListener("click", () => {
       const on = !C.getSettings().haptics;

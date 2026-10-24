@@ -76,6 +76,8 @@
     window.App.UI.init();
     window.App.Router.init();
     initStars();
+    // 本地壁纸（视频目录）：恢复上次授权的目录句柄
+    if (window.App.Wallpaper) window.App.Wallpaper.init();
     // 登录状态下拉取云端数据
     if (C.isLoggedIn()) {
       C.pullFromServer().then(() => {

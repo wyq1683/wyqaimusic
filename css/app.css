@@ -2056,6 +2056,138 @@ body.np-landscape .np-lyrics { height: min(46vh, 320px); padding: 6% 4px; }
   background-repeat: no-repeat;
   transition: filter var(--dur-2) var(--ease-out);
 }
+.bg-video,
+.bg-wall {
+  position: fixed;
+  inset: -48px;  /* 超出视口，模糊时不露边 */
+  z-index: 0;
+  pointer-events: none;
+  transition: filter var(--dur-2) var(--ease-out);
+}
+.bg-wall[hidden] { display: none; }
+.bg-wall video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  filter: blur(var(--wp-blur, 0px));
+}
+/* 壁纸暗化：单独一层，避免直接改 video 亮度影响色彩 */
+.bg-wall::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: #000;
+  opacity: var(--wp-dim, 0);
+  pointer-events: none;
+}
+
+/* 视频壁纸专用：玻璃面板在亮画面上会糊成一片，补一层可见的暗底。
+   只在 has-wallpaper 时显示，不影响普通背景。 */
+.bg-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  display: none;
+  background: linear-gradient(180deg, rgba(5, 6, 12, 0.46), rgba(5, 6, 12, 0.56));
+}
+body.has-wallpaper .bg-scrim { display: block; }
+body[data-theme="light"].has-wallpaper .bg-scrim {
+  background: linear-gradient(180deg, rgba(238, 240, 247, 0.5), rgba(238, 240, 247, 0.62));
+}
+/* 视频亮度不可控：玻璃表面必须自己变实，否则白字直接糊在画面上。
+   在令牌层覆盖，所有卡片/弹窗/侧栏一次生效，不需要逐组件打补丁。 */
+body.has-wallpaper {
+  /* 0.86 是算出来的下限：纯白视频 + 压暗层之下，正文对比度仍有 4.95:1。
+     再低就会出现「字糊在画面上」，这是壁纸场景最常见的翻车点。 */
+  --glass-card: rgba(11, 13, 22, 0.86);
+  --glass-card-hover: rgba(11, 13, 22, 0.92);
+  --glass-bg: rgba(10, 12, 21, 0.9);
+  --glass-bg-strong: rgba(9, 11, 19, 0.95);
+  --hairline: rgba(255, 255, 255, 0.14);
+  --hairline-strong: rgba(255, 255, 255, 0.22);
+  /* 次级文字在「纯白视频」最坏情况下只有 3.4:1，抬一档到 4.78:1 */
+  --text-3: #9aa0b8;
+}
+/* 内容区底板：歌曲列表行本身是透明的，没有这块板正文会直接压在画面上。
+   壁纸仍然从两侧留白与板块间隙透出来。
+   正在播放页排除在外 —— 那页本来就是给壁纸当舞台的，不该被卡片包住。 */
+body.has-wallpaper:not([data-route="/now-playing"]) .view > .page {
+  /* 关键：先模糊再压暗。视频的高频细节（条纹、亮斑）才是毁掉文字对比的元凶，
+     模糊掉之后同样的亮度下文字稳得多，壁纸的色相和动感还能留住。 */
+  background: rgba(10, 12, 21, 0.66);
+  backdrop-filter: blur(26px) saturate(1.15);
+  -webkit-backdrop-filter: blur(26px) saturate(1.15);
+  border-radius: var(--r-xl);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+  /* 撑满可视区，否则空状态页只有一小块卡片浮在壁纸上，像没加载完 */
+  min-height: calc(100dvh - var(--topbar-h) - var(--player-h) - 48px);
+}
+body[data-theme="light"].has-wallpaper:not([data-route="/now-playing"]) .view > .page {
+  background: rgba(250, 251, 255, 0.66);
+  backdrop-filter: blur(26px) saturate(1.1);
+  -webkit-backdrop-filter: blur(26px) saturate(1.1);
+  box-shadow: 0 20px 60px rgba(30, 40, 70, 0.14);
+}
+body.has-wallpaper:not([data-route="/now-playing"]) .view { padding-left: 14px; padding-right: 14px; }
+/* 正在播放页：壁纸直接当舞台，不压暗页面本身，只保留全局压暗层 */
+body.has-wallpaper[data-route="/now-playing"] .view > .page { background: transparent; }
+
+body[data-theme="light"].has-wallpaper {
+  --glass-card: rgba(255, 255, 255, 0.66);
+  --glass-card-hover: rgba(255, 255, 255, 0.8);
+  --glass-bg: rgba(252, 253, 255, 0.82);
+  --glass-bg-strong: rgba(255, 255, 255, 0.94);
+  --hairline: rgba(12, 16, 30, 0.12);
+  --hairline-strong: rgba(12, 16, 30, 0.2);
+}
+
+/* ---- 壁纸面板（设置页 / 工作台）---- */
+.wp-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  color: var(--text-3);
+  padding: 9px 12px;
+  border-radius: var(--r-sm);
+  background: var(--glass-card);
+  border: 1px solid var(--hairline);
+  margin-bottom: 12px;
+}
+.wp-status .wp-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--text-3);
+  flex: none;
+}
+.wp-status.on .wp-dot { background: var(--success); box-shadow: 0 0 8px var(--success); }
+.wp-status.on { color: var(--text-2); }
+.wp-dirs { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.wp-dir {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 10px;
+  border-radius: var(--r-sm);
+  background: var(--glass-card);
+  border: 1px solid var(--hairline);
+  font-size: 0.78rem;
+  color: var(--text-2);
+}
+.wp-dir .wp-dir-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wp-dir .wp-dir-flag { font-size: 0.68rem; color: var(--warning); }
+.wp-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 2px; }
+.wp-hint { font-size: 0.72rem; color: var(--text-3); line-height: 1.6; margin-top: 10px; }
+.wp-seg { display: inline-flex; padding: 3px; border-radius: var(--r-full); background: var(--glass-card); border: 1px solid var(--hairline); gap: 2px; }
+.wp-seg button {
+  padding: 5px 12px; border-radius: var(--r-full);
+  font-size: 0.78rem; color: var(--text-3);
+  transition: all var(--dur-1) var(--ease-out);
+}
+.wp-seg button.active { background: var(--accent); color: #fff; }
+.wp-seg button:disabled { opacity: 0.4; cursor: not-allowed; }
+/* 设置页里复用 look-block 时，滑块不能拉满整行（940px 拖起来精度过剩） */
+.set-card .look-block .range { width: 100%; max-width: 260px; }
+
 .bg-picker {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));

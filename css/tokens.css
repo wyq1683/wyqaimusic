@@ -10,6 +10,9 @@
   --bg-1: #0a0c16;
   --bg-2: #10131f;
 
+  /* ---- 面板基色（RGB 三元组，通透模式按透明度合成用） ---- */
+  --panel-rgb: 15 17 28;
+
   /* ---- 玻璃表面 ---- */
   --glass-bg: rgba(15, 17, 28, 0.66);
   --glass-bg-strong: rgba(13, 15, 25, 0.86);
@@ -79,6 +82,7 @@ body[data-theme="light"] {
   --bg-1: #f6f7fb;
   --bg-2: #ffffff;
 
+  --panel-rgb: 252 253 255;
   --glass-bg: rgba(255, 255, 255, 0.78);
   --glass-bg-strong: rgba(255, 255, 255, 0.92);
   --glass-card: rgba(20, 24, 40, 0.04);

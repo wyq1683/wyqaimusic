@@ -578,6 +578,7 @@
     bgPreset: "aurora",
     bgImage: "",           // 自定义背景（压缩后的 dataURL）
     sidebarMini: false,
+    uiStyle: "solid",      // solid = 实心玻璃（Wave 2）| clear = 通透玻璃（Wave 1）
   };
   function getSettings() {
     return Object.assign({}, defaultSettings, read(K.SETTINGS, {}));
@@ -591,13 +592,24 @@
   function applySettings(s) {
     document.body.dataset.theme = s.theme;
     document.body.classList.toggle("sb-mini", !!s.sidebarMini);
+    // 通透界面（Wave 1 观感）：仅切一个类，令牌整体换挡，组件零改动
+    document.body.classList.toggle("ui-clear", s.uiStyle === "clear");
     if (s.accent) setAccent(s.accent);
     else if (global.App.Player && global.App.Player.current) applySongAccent(global.App.Player.current.song);
+    // 图片类背景（桌面/移动/自定义）亮度不可控，压暗层要按「最坏情况」兜底，
+    // 否则正文直接坐在亮图上，次级文字对比会掉到 2:1。渐变背景不需要这么重。
+    const isPhoto = s.bgPreset === "desktop" || s.bgPreset === "mobile" || (s.bgPreset === "custom" && !!s.bgImage);
+    // 图片背景要额外把卡片底色变实（CSS 里 body.bg-photo 一套令牌），否则白字糊在亮图上
+    document.body.classList.toggle("bg-photo", isPhoto);
+    const topA = isPhoto ? 0.62 : s.bgBlur / 90;
+    const botA = isPhoto ? 0.74 : 0.3 + s.glass / 160;
     document.querySelector(".bg-veil").style.background =
-      "linear-gradient(180deg, rgba(5,6,12," + (s.bgBlur / 90).toFixed(3) + "), rgba(5,6,12," + (0.3 + s.glass / 160).toFixed(3) + "))";
+      "linear-gradient(180deg, rgba(5,6,12," + topA.toFixed(3) + "), rgba(5,6,12," + botA.toFixed(3) + "))";
     if (s.theme === "light") {
+      const lTop = isPhoto ? 0.64 : s.bgBlur / 120;
+      const lBot = isPhoto ? 0.76 : 0.35 + s.glass / 200;
       document.querySelector(".bg-veil").style.background =
-        "linear-gradient(180deg, rgba(238,240,247," + (s.bgBlur / 120).toFixed(3) + "), rgba(238,240,247," + (0.35 + s.glass / 200).toFixed(3) + "))";
+        "linear-gradient(180deg, rgba(238,240,247," + lTop.toFixed(3) + "), rgba(238,240,247," + lBot.toFixed(3) + "))";
     }
     // 主题切换后按新主题重算派生强调色（inline 变量优先级高于 body[data-theme] 静态规则）
     if (s.accent) setAccent(s.accent);
@@ -651,7 +663,8 @@
       aurora.style.display = "none";
       stars.style.display = "none";
       document.body.style.background = "var(--bg-0)";
-      showImage("assets/" + v + ".jpg");
+      // 文件实际叫 bg-desktop.jpg / bg-mobile.jpg，之前拼成 assets/desktop.jpg 一直 404
+      showImage("assets/bg-" + v + ".jpg");
     } else if (v === "custom" && s.bgImage) {
       aurora.style.display = "none";
       stars.style.display = "none";

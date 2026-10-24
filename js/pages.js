@@ -1311,6 +1311,12 @@
       (s.bgImage ? '<button class="btn btn-ghost" id="stBgUse">使用我的图片</button><button class="btn btn-danger" id="stBgClear">移除</button>' : "") +
       "</div></div>" +
 
+      '<div class="set-row"><div class="set-info"><div class="set-name">界面风格</div><div class="set-desc">通透 = Wave 1 的透明玻璃，背景整片透出；实心 = Wave 2 当前观感</div></div>' +
+      '<div class="set-ctrl"><div class="chip-row" id="stUiStyle">' +
+      '<button class="chip' + (s.uiStyle !== "clear" ? " active" : "") + '" data-uistyle="solid">实心</button>' +
+      '<button class="chip' + (s.uiStyle === "clear" ? " active" : "") + '" data-uistyle="clear">通透</button>' +
+      "</div></div></div>" +
+
       '<div class="set-row"><div class="set-info"><div class="set-name">背景模糊</div><div class="set-desc">数值越大背景越朦胧</div></div>' +
       '<div class="set-ctrl"><input type="range" class="range" id="stBlur" min="0" max="30" value="' + s.bgBlur + '" /><span class="range-val" id="stBlurVal">' + s.bgBlur + "px</span></div></div>" +
 
@@ -1376,6 +1382,14 @@
         if (!v && P().currentSong()) C.applySongAccent(P().currentSong());
         $$("[data-accent]", el).forEach((x) => x.classList.toggle("active", x === b));
         UI().toast(v ? "主题色已更新" : "已恢复跟随歌曲封面");
+      })
+    );
+    // 界面风格（实心 / 通透）
+    $$("[data-uistyle]", el).forEach((b) =>
+      b.addEventListener("click", () => {
+        C.saveSettings({ uiStyle: b.dataset.uistyle });
+        $$("[data-uistyle]", el).forEach((x) => x.classList.toggle("active", x === b));
+        UI().toast(b.dataset.uistyle === "clear" ? "已切换通透界面" : "已切换实心界面");
       })
     );
     // 背景

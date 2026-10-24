@@ -81,6 +81,21 @@ body[data-theme="light"] .player-bar {
     inset 0 -22px 36px -30px rgba(30, 40, 70, calc(0.12 * var(--glass-rim, 1)));
 }
 
+/* 搜索页：某个音源失败时的提示条。
+   不用 toast（几秒就消失），让「少了一个源」这件事始终可见。 */
+.src-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  border-radius: var(--r-md);
+  background: rgb(255 179 77 / 0.10);
+  border: 1px solid rgb(255 179 77 / 0.30);
+  color: var(--warning);
+  font-size: 0.8rem;
+}
+
 /* ==================== 2. 侧边导航 ==================== */
 .sidebar {
   width: var(--sidebar-w);

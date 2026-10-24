@@ -216,11 +216,16 @@
         if (cl) cl.addEventListener("click", () => { C.clearSearchHistory(); renderBody(); });
         return;
       }
+      // 有音源失败时给一条明确的提示，别让"少了一半结果"看起来像坏了
+      const failed = searchState.failed || [];
+      const note = failed.length
+        ? '<div class="src-note">' + C.esc(failed.join("、")) + " 音源暂时不可用，以下为其余音源的结果</div>"
+        : "";
       if (!searchState.results.length) {
-        body.innerHTML = UI().emptyState("search", "没有找到相关歌曲", "换个关键词，或切换音源试试");
+        body.innerHTML = note + UI().emptyState("search", "没有找到相关歌曲", "换个关键词，或切换音源试试");
         return;
       }
-      body.innerHTML = UI().songListHTML(searchState.results);
+      body.innerHTML = note + UI().songListHTML(searchState.results);
     }
 
     async function doSearch(q) {
@@ -229,12 +234,34 @@
       if (!q) { searchState.searched = false; searchState.results = []; renderBody(); return; }
       searchState.loading = true;
       searchState.searched = true;
+      searchState.failed = [];
       renderBody();
       C.addSearchHistory(q);
       try {
         if (searchState.src === "all") {
+          // 综合 = 站内 + 全部在线源。单源失败不能拖垮整体（QQ 上游被限制时尤其如此），
+          // 否则用户看到的是「搜索失败」而不是「少了一个源」。
+          searchState.failed = [];
           const k = q.toLowerCase();
-          searchState.results = D.SONGS.filter((s) => (s.title + s.artist + s.album + s.genre).toLowerCase().includes(k));
+          const local = D.SONGS.filter((s) => (s.title + s.artist + s.album + s.genre).toLowerCase().includes(k));
+          const jobs = [
+            ["网易云", C.apiGet("netease.php", { action: "search", keywords: q, limit: 15 })],
+            ["QQ 音乐", C.apiGet("qq.php", { action: "search", keywords: q, limit: 15 })],
+            ["Audius", C.apiGet("audius.php", { action: "search", q: q, limit: 15 })],
+          ];
+          const settled = await Promise.allSettled(jobs.map(async ([name, p]) => {
+            const r = await p;
+            // 只有接口挂了才 reject（进失败名单）；「成功但没结果」走空数组
+            if (!r || !r.ok || !r.data) throw new Error(name);
+            return r.data.map((song) => D.registerExternal(song));
+          }));
+          const online = [];
+          settled.forEach((res, i) => {
+            // 任务返回的是歌曲数组，不是接口响应 —— 别拿 res.value.ok 判断
+            if (res.status === "fulfilled" && Array.isArray(res.value)) online.push(...res.value);
+            else searchState.failed.push(jobs[i][0]);
+          });
+          searchState.results = local.concat(online);
         } else if (searchState.src === "netease") {
           const r = await C.apiGet("netease.php", { action: "search", keywords: q, limit: 30 });
           searchState.results = r.ok && r.data ? r.data.map((s) => D.registerExternal(s)) : [];

@@ -480,7 +480,7 @@
   }
 
   /* ==================== 收听历史 ==================== */
-  function history() {
+  function historyPage() {
     const data = C.isLoggedIn() ? C.getUserData() : null;
     const items = data ? data.history.slice().sort((a, b) => (b.last || 0) - (a.last || 0)) : [];
     const songs = items.map((h) => D.get(h.id)).filter(Boolean);
@@ -1124,6 +1124,14 @@
     $("#npImmersive", el).addEventListener("click", () => setImmersive(!document.body.classList.contains("immersive")));
     $("#npLandscape", el).addEventListener("click", () => setLandscape(!document.body.classList.contains("np-landscape")));
     modeExit.addEventListener("click", () => { setImmersive(false); setLandscape(false); });
+    // 沉浸 / 横屏下先退出模式，再按应用内导航栈回退
+    const goBack = () => {
+      if (document.body.classList.contains("immersive")) setImmersive(false);
+      if (document.body.classList.contains("np-landscape")) setLandscape(false);
+      const R2 = global.App.Router;
+      if (R2 && R2.back) R2.back();
+      else window.history.back();
+    };
     const onFsChange = () => { if (!document.fullscreenElement) setImmersive(false); };
     document.addEventListener("fullscreenchange", onFsChange);
     const onEscMode = (e) => {
@@ -1244,7 +1252,7 @@
     if (C.isFavorite(npSong.id)) favBtn.style.color = "var(--danger)";
     $("#npAddPl", el).addEventListener("click", () => UI().openPlaylistPicker(npSong));
     $("#npShare", el).addEventListener("click", () => UI().openShareModal(npSong));
-    $("#npBack", el).addEventListener("click", () => history.back());
+    $("#npBack", el).addEventListener("click", goBack);
     return el;
   }
 
@@ -1454,7 +1462,7 @@
     "/favorites": favorites,
     "/playlists": playlists,
     "/playlist/:id": playlistDetail,
-    "/history": history,
+    "/history": historyPage,
     "/social": social,
     "/user/:id": userDetail,
     "/profile": profile,

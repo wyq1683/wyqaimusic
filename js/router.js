@@ -9,6 +9,10 @@
 
   let current = null; // {route, params, query}
   let firstRender = true;
+  // 应用内导航栈：history.back() 在深链 / 全屏场景下没有可靠回退目标，
+  // 用它来判断「上一页」到底是哪一页，没有则回首页。
+  const navStack = [];
+  let lastPath = null;
 
   function parseHash() {
     const raw = location.hash.replace(/^#/, "") || "/home";
@@ -71,6 +75,19 @@
     const { path, query } = parseHash();
     const m = matchRoute(path);
     const view = $("#view");
+
+    // 记录导航栈（同一路径不重复入栈；软刷新不改变栈）
+    if (path !== lastPath) {
+      const exist = navStack.indexOf(path);
+      if (exist >= 0) {
+        // 浏览器前进/后退回到了栈内已有的页：截断到该位置
+        navStack.length = exist + 1;
+      } else if (!soft) {
+        navStack.push(path);
+        if (navStack.length > 40) navStack.shift();
+      }
+      lastPath = path;
+    }
 
     if (!soft) startProgress();
 
@@ -135,15 +152,32 @@
     else location.hash = path;
   }
 
+  // 应用内返回：优先回退到导航栈中的上一页；栈里没有上一页时回首页。
+  // 不用 history.back()：深链进入 / 浏览器历史被清空时它会静默失败（点了没反应）。
+  function back(fallback) {
+    const curPath = parseHash().path;
+    // 栈顶是当前页时先弹掉
+    if (navStack.length && navStack[navStack.length - 1] === curPath) navStack.pop();
+    const prev = navStack.length ? navStack[navStack.length - 1] : null;
+    if (prev && prev !== curPath) {
+      navStack.pop();
+      navigate(prev);
+      return true;
+    }
+    navigate(fallback || "/home");
+    return true;
+  }
+
   function init() {
-    window.addEventListener("hashchange", render);
-    $("#topbarBack").addEventListener("click", () => history.back());
+    // 注意：不能直接把 render 传给 hashchange —— 事件对象是 truthy，会被当成 soft 参数
+    window.addEventListener("hashchange", function () { render(); });
+    $("#topbarBack").addEventListener("click", () => back());
     if (!location.hash) location.hash = "#/home";
     render();
   }
 
   global.App.Router = {
-    init, navigate, render, refresh,
+    init, navigate, render, refresh, back,
     get current() { return current; },
   };
 })(window);

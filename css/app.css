@@ -239,7 +239,21 @@ body.sb-mini .sb-nav .nav-item { justify-content: center; }
   position: relative;
   z-index: 30;
 }
-.nav-toggle, .topbar-back { display: none; }
+.nav-toggle { display: none; }
+/* 顶栏返回键：默认隐藏，路由标记 back 时由 JS 去掉 hidden 才显示 */
+.topbar-back { display: none; }
+.topbar-back:not([hidden]) {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: var(--r-sm);
+  color: var(--text-2);
+  cursor: pointer;
+  transition: background var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
+}
+.topbar-back:not([hidden]):hover { background: var(--hover); color: var(--text-1); }
 
 .topbar-title {
   font-size: 1.06rem;

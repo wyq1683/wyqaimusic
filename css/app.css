@@ -1840,8 +1840,8 @@ textarea.field-input { height: auto; padding: 10px 13px; resize: vertical; }
   font-size: 1.02rem;
   color: var(--text-3);
   transition: all var(--dur-2) var(--ease-out);
-  transform-origin: left center;
-  text-align: left;
+  transform-origin: center top;
+  text-align: center;
   line-height: 1.5;
 }
 .lyric-line.active {
@@ -1853,28 +1853,84 @@ textarea.field-input { height: auto; padding: 10px 13px; resize: vertical; }
 }
 .lyric-empty { color: var(--text-3); font-size: 0.86rem; padding: 20px 4px; }
 
-/* 逐字卡拉OK（仅正在播放页） */
-.np-lyrics-karaoke .lyric-line.active {
+/* 逐字卡拉OK（karaoke，rAF 驱动，仅正在播放页） */
+.np-lyrics--karaoke .lyric-line.active {
   color: var(--text-2);
   font-size: 1.1rem;
   font-weight: 600;
   transform: scale(1.02);
   text-shadow: none;
 }
-.np-lyrics-karaoke .lyric-line .kw {
+.np-lyrics--karaoke .lyric-line .kw {
   display: inline-block;
   color: var(--text-3);
   will-change: color, filter;
   transition: color var(--dur-2) var(--ease-out), filter var(--dur-2) var(--ease-out);
 }
-.np-lyrics-karaoke .lyric-line .kw.on {
+.np-lyrics--karaoke .lyric-line .kw.on {
   color: var(--text-2);   /* 已唱过的行：浅亮、不发光，把高光留给当前行 */
 }
-.np-lyrics-karaoke .lyric-line.active .kw.on {
+.np-lyrics--karaoke .lyric-line.active .kw.on {
   color: var(--accent-text);
   /* drop-shadow 走合成器、不进字形缓存，规避逐帧 text-shadow 在 Linux Chromium 的 fd 泄漏 */
   filter: drop-shadow(0 0 10px var(--accent-glow));
 }
+
+/* 倾斜浮现（tilt）—— 整块歌词微 3D 倾斜，当前行抬升浮出 */
+.np-lyrics--tilt { perspective: 900px; transform-style: preserve-3d; }
+.np-lyrics--tilt .lyric-line { opacity: .5; transform: translateZ(0) rotateX(6deg); }
+.np-lyrics--tilt .lyric-line.active {
+  opacity: 1; color: var(--accent-text); font-weight: 700;
+  transform: translateZ(48px) scale(1.08);
+  text-shadow: 0 0 22px var(--accent-glow);
+}
+
+/* 脉冲呼吸（pulse）—— 当前行规律缩放 + 辉光呼吸 */
+.np-lyrics--pulse .lyric-line.active {
+  color: var(--accent-text);
+  animation: lyric-pulse 2.6s ease-in-out infinite;
+}
+@keyframes lyric-pulse {
+  0%, 100% { transform: scale(1.02); filter: none; }
+  50% { transform: scale(1.06); filter: drop-shadow(0 0 14px var(--accent-glow)); }
+}
+
+/* 弧线卷轴（arc）—— 非当前行沿弧线后倒下沉，当前行立起 */
+.np-lyrics--arc { perspective: 760px; }
+.np-lyrics--arc .lyric-line {
+  opacity: .3; transform: rotateX(32deg) translateY(10px) scale(.9); transform-origin: center top;
+}
+.np-lyrics--arc .lyric-line.active {
+  opacity: 1; color: var(--accent-text); font-weight: 700;
+  transform: rotateX(0) translateY(0) scale(1);
+  text-shadow: 0 0 22px var(--accent-glow);
+}
+
+/* 气泡对话（bubble）—— 当前行像一句聊天消息冒出 */
+.np-lyrics--bubble .lyric-line { opacity: .42; }
+.np-lyrics--bubble .lyric-line.active {
+  opacity: 1; color: var(--accent-text); display: inline-block; font-weight: 600;
+  background: color-mix(in srgb, var(--accent, #7c5cff) 20%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent, #7c5cff) 42%, transparent);
+  border-radius: 18px; padding: 10px 22px;
+  animation: bubble-pop .42s var(--ease-out) both;
+}
+@keyframes bubble-pop {
+  from { transform: scale(.82) translateY(10px); opacity: 0; }
+  to { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+/* 逐字打字（type，纯 CSS 逐字揭示，需网易云逐字歌词） */
+.np-lyrics--type .lyric-line .kw { display: inline-block; opacity: 0; }
+.np-lyrics--type .lyric-line.active .kw {
+  animation: type-reveal .34s both;
+  animation-delay: calc(var(--i, 0) * .035s);
+}
+@keyframes type-reveal {
+  from { opacity: 0; transform: translateX(-7px); filter: blur(2px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+
 .lyric-trans-row {
   font-size: 0.82rem;
   color: var(--text-3);

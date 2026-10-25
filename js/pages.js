@@ -1249,19 +1249,20 @@
         pane.innerHTML = '<div class="np-lyrics"><div class="lyric-empty">' + (npSong.external ? "暂无歌词" : "本地曲目暂无歌词，播放网易云 / QQ 音乐歌曲可自动加载") + "</div></div>";
         return;
       }
+      // 逐字 span 的两种模式：karaoke（rAF 驱动逐字发光）与 type（纯 CSS 逐字揭示，靠 --i 变量错开延迟）
+      const needWords = mode === "karaoke" || mode === "type";
       const html = lyrics.map((l, i) => {
-        const isK = mode === "karaoke";
-        const words = isK ? (l.words || pseudoWords(mainText(l), l.t, lyrics[i + 1] ? lyrics[i + 1].t : l.t + 4)) : null;
         let inner;
-        if (isK && words) {
-          inner = words.map((w) => '<span class="kw" data-s="' + w.start.toFixed(3) + '" data-e="' + w.end.toFixed(3) + '">' + C.esc(w.text) + "</span>").join("");
+        if (needWords) {
+          const words = l.words || pseudoWords(mainText(l), l.t, lyrics[i + 1] ? lyrics[i + 1].t : l.t + 4);
+          inner = words.map((w, wi) => '<span class="kw" data-s="' + w.start.toFixed(3) + '" data-e="' + w.end.toFixed(3) + '" style="--i:' + wi + '">' + C.esc(w.text) + "</span>").join("");
           if (l.trans) inner += '<div class="lyric-trans-row">' + C.esc(l.trans) + "</div>";
         } else {
           inner = l.text;
         }
-        return '<div class="lyric-line' + (isK && words ? " lyric-line--karaoke" : "") + '" data-li="' + i + '">' + inner + "</div>";
+        return '<div class="lyric-line" data-li="' + i + '">' + inner + "</div>";
       }).join("");
-      pane.innerHTML = '<div class="np-lyrics' + (mode === "karaoke" ? " np-lyrics-karaoke" : "") + '" id="npLyricScroll">' + html + "</div>";
+      pane.innerHTML = '<div class="np-lyrics np-lyrics--' + mode + '" id="npLyricScroll">' + html + "</div>";
       // 重新渲染后立刻对齐当前播放进度：否则要等下一次 lyricline 事件才高亮，
       // 中途进入页面 / 切歌时会看到歌词停在中间不动。
       const box = $("#npLyricScroll", el);
@@ -1666,11 +1667,16 @@
       "</div></div></div>" +
       '<div class="set-row"><div class="set-info"><div class="set-name">触感反馈</div><div class="set-desc">支持震动的设备上播放操作时轻震</div></div>' +
       '<div class="set-ctrl"><button class="switch' + (s.haptics ? " on" : "") + '" id="stHaptic" role="switch" aria-checked="' + s.haptics + '" aria-label="触感反馈"></button></div></div>' +
-      '<div class="set-row"><div class="set-info"><div class="set-name">歌词模式</div><div class="set-desc">逐字卡拉OK 需网易云逐字歌词；其他音源自动按行时长均匀揭示</div></div>' +
-      '<div class="set-ctrl"><div class="chip-row" id="stLyricMode">' +
-      '<button class="chip' + (s.lyricMode !== "karaoke" ? " active" : "") + '" data-lm="fade">整行渐显</button>' +
+      '<div class="set-row"><div class="set-info"><div class="set-name">歌词动效</div><div class="set-desc">逐字卡拉OK / 逐字打字需网易云逐字歌词；其他音源按行时长均匀揭示</div></div>' +
+      '<div class="set-ctrl"><div class="chip-row" id="stLyricFx">' +
+      '<button class="chip' + (s.lyricMode === "fade" ? " active" : "") + '" data-lm="fade">整行渐显</button>' +
       '<button class="chip' + (s.lyricMode === "karaoke" ? " active" : "") + '" data-lm="karaoke">逐字卡拉OK</button>' +
-      "</div></div></div>" +
+      '<button class="chip' + (s.lyricMode === "tilt" ? " active" : "") + '" data-lm="tilt">倾斜浮现</button>' +
+      '<button class="chip' + (s.lyricMode === "pulse" ? " active" : "") + '" data-lm="pulse">脉冲呼吸</button>' +
+      '<button class="chip' + (s.lyricMode === "arc" ? " active" : "") + '" data-lm="arc">弧线卷轴</button>' +
+      '<button class="chip' + (s.lyricMode === "bubble" ? " active" : "") + '" data-lm="bubble">气泡对话</button>' +
+      '<button class="chip' + (s.lyricMode === "type" ? " active" : "") + '" data-lm="type">逐字打字</button>' +
+      '</div></div></div>' +
       "</div></div>" +
 
       '<div class="set-section"><div class="sec-head"><div class="sec-title">键盘快捷键</div></div><div class="set-card">' +
@@ -1815,13 +1821,14 @@
         requestAnimationFrame(() => { const v = document.getElementById("view"); if (v) v.scrollTop = keep; });
       });
     }
-    // 歌词模式
+    // 歌词动效
+    const fxName = { fade: "整行渐显", karaoke: "逐字卡拉OK", tilt: "倾斜浮现", pulse: "脉冲呼吸", arc: "弧线卷轴", bubble: "气泡对话", type: "逐字打字" };
     $$("[data-lm]", el).forEach((b) =>
       b.addEventListener("click", () => {
         const v = b.dataset.lm;
         C.saveSettings({ lyricMode: v });
         $$("[data-lm]", el).forEach((x) => x.classList.toggle("active", x === b));
-        UI().toast(v === "karaoke" ? "已切换到逐字卡拉OK" : "已切换到整行渐显");
+        UI().toast("已切换到" + (fxName[v] || v));
       })
     );
     // 触感

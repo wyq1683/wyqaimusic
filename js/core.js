@@ -601,7 +601,7 @@
     bgPreset: "aurora",
     bgImage: "",           // 自定义背景（压缩后的 dataURL）
     sidebarMini: false,
-    lyricMode: "fade",     // 歌词模式：fade 整行渐显 | karaoke 逐字卡拉OK
+    lyricMode: "fade",     // 歌词动效：fade 整行渐显 | karaoke 逐字卡拉OK | tilt 倾斜浮现 | pulse 脉冲呼吸 | arc 弧线卷轴 | bubble 气泡对话 | type 逐字打字
   };
   function getSettings() {
     return Object.assign({}, defaultSettings, read(K.SETTINGS, {}));

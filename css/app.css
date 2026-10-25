@@ -1776,7 +1776,37 @@ textarea.field-input { height: auto; padding: 10px 13px; resize: vertical; }
   align-items: center;
   min-height: calc(100vh - var(--topbar-h) - var(--player-h) - 68px);
   padding-top: 8px;
+  position: relative;
 }
+.np-immerse {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background-size: cover;
+  background-position: center;
+  transition: background-image var(--dur-4) var(--ease-out), background-color var(--dur-4) var(--ease-out);
+}
+.np-immerse::before {
+  content: "";
+  position: absolute;
+  inset: -14%;
+  background: inherit;
+  background-size: cover;
+  background-position: center;
+  filter: blur(54px) brightness(.42) saturate(1.4);
+  transform: scale(1.18);
+}
+.np-immerse::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(5,6,12,.28), rgba(5,6,12,.6)),
+    linear-gradient(150deg, color-mix(in srgb, var(--im-from, var(--accent)) 28%, transparent), color-mix(in srgb, var(--im-to, var(--accent)) 24%, transparent) 70%);
+}
+.np-page > *:not(.np-immerse) { position: relative; z-index: 1; }
 .np-cover-wrap {
   display: flex;
   flex-direction: column;

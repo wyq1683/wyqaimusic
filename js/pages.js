@@ -1181,6 +1181,7 @@
     let npSong = song0; // 跟随 player:changed 原地更新，避免整页重挂载
     let html =
       '<div class="np-page">' +
+      '<div class="np-immerse" id="npImmerse"></div>' +
       '<button class="np-mode-exit" id="npModeExit" type="button" hidden>' + C.icon("close", 13) + " 退出</button>" +
       '<div class="np-cover-wrap">' +
       '<div class="np-cover spinning" id="npCover" style="background:linear-gradient(150deg,' + npSong.c.from + "," + npSong.c.to + ')">' +
@@ -1553,14 +1554,36 @@
       renderLyric();
       if (npTab === "queue") renderQueue();
     }
+    const onCoverColor = (info) => {
+      const im = $("#npImmerse", el);
+      if (!im) return;
+      if (info.coverUrl) {
+        im.style.backgroundImage = "url('api/cover.php?u=" + encodeURIComponent(info.coverUrl) + "')";
+        im.classList.add("has-cover");
+      } else {
+        im.style.backgroundImage = "linear-gradient(135deg," + info.from + "," + info.to + ")";
+        im.classList.remove("has-cover");
+      }
+      im.style.setProperty("--im-from", info.from);
+      im.style.setProperty("--im-to", info.to);
+    };
+    bus.on("player:covercolor", onCoverColor);
+
     const onSongChanged = (s) => { if (s) updateSongInfo(s); };
     bus.on("player:changed", onSongChanged);
+    // 初次进入播放页：已取得该曲颜色则直接补渲染，否则触发一次取色
+    if (npSong && npSong.themeColor) {
+      onCoverColor({ accent: npSong.themeColor, from: (npSong._coverGrad && npSong._coverGrad.from) || npSong.themeColor, to: (npSong._coverGrad && npSong._coverGrad.to) || npSong.themeColor, coverUrl: npSong.coverUrl });
+    } else if (npSong) {
+      C.applySongAccent(npSong);
+    }
 
     // 页面移除时解绑监听
     const obs = new MutationObserver(() => {
       if (!document.body.contains(el)) {
         bus.off("player:lyricline", onLyricLine);
         bus.off("player:changed", onSongChanged);
+        bus.off("player:covercolor", onCoverColor);
         bus.off("player:state", onNpState);
         bus.off("player:time", onNpTime);
         if (specRAF) cancelAnimationFrame(specRAF);

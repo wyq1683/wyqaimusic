@@ -251,6 +251,42 @@
     return lines;
   }
 
+  // 网易云逐字歌词（yrc）：每行 [行起ms,行长ms]字(字起ms,字长ms,标志)文本
+  // 字时间是绝对秒。返回 [{t, text, words:[{text,start,end}], trans?}]
+  function parseYrc(yrc, tlyric) {
+    if (!yrc) return null;
+    const tmap = {};
+    if (tlyric) {
+      parseLrc(tlyric).forEach((t) => (tmap[t.t.toFixed(2)] = t.text));
+    }
+    const lines = [];
+    yrc.replace(/^\uFEFF/, "").split(/\r?\n/).forEach((raw) => {
+      const lm = raw.match(/^\[(\d+),(\d+)\](.*)/);
+      if (!lm) return;
+      const lineStart = parseInt(lm[1], 10) / 1000;
+      const rest = lm[3];
+      const words = [];
+      let fullText = "";
+      const wr = /\((\d+),(\d+),(\d+)\)([^\(]*)/g;
+      let wm;
+      while ((wm = wr.exec(rest)) !== null) {
+        const cs = parseInt(wm[1], 10) / 1000;
+        const cd = parseInt(wm[2], 10) / 1000;
+        const txt = wm[4];
+        if (!txt) continue;
+        words.push({ text: txt, start: cs, end: cs + cd });
+        fullText += txt;
+      }
+      if (!words.length) return;
+      const key = Object.keys(tmap).find((k) => Math.abs(parseFloat(k) - lineStart) < 0.05);
+      const trans = key ? tmap[key] : "";
+      // text 保留译文（与 lrc 模式一致，fade / 抽屉直接可用）；karaoke 用 words + trans
+      const text = trans ? fullText + "<span class='lyric-trans'>" + C.esc(trans) + "</span>" : fullText;
+      lines.push({ t: lineStart, text, words, trans });
+    });
+    return lines.length ? lines : null;
+  }
+
   async function fetchLyrics(song) {
     if (!song) return;
     if (!song.external) {
@@ -270,19 +306,30 @@
         return;
       }
       if (data && data.ok && data.lyric) {
-        const orig = parseLrc(data.lyric);
-        const trans = parseLrc(data.tlyric || "");
-        if (trans.length) {
-          // 合并译文：同时间戳行附加翻译
-          const tmap = {};
-          trans.forEach((t) => (tmap[t.t.toFixed(2)] = t.text));
-          orig.forEach((l) => {
-            const key = Object.keys(tmap).find((k) => Math.abs(parseFloat(k) - l.t) < 0.05);
-            if (key) l.text = l.text + "<span class='lyric-trans'>" + C.esc(tmap[key]) + "</span>";
-          });
+        let lines = null;
+        // 网易云逐字歌词（yrc）：有则用真实演唱节奏做逐字动画
+        if (song.id.indexOf("ne_") === 0 && data.yrc) {
+          lines = parseYrc(data.yrc, data.tlyric || "");
         }
-        state.lyrics = orig;
-        bus.emit("player:lyric", orig);
+        if (!lines) {
+          const orig = parseLrc(data.lyric);
+          const trans = parseLrc(data.tlyric || "");
+          if (trans.length) {
+            // 译文独立存 trans；l.text 仍保留 span 以兼容 fade / 抽屉
+            const tmap = {};
+            trans.forEach((t) => (tmap[t.t.toFixed(2)] = t.text));
+            orig.forEach((l) => {
+              const key = Object.keys(tmap).find((k) => Math.abs(parseFloat(k) - l.t) < 0.05);
+              if (key) {
+                l.text = l.text + "<span class='lyric-trans'>" + C.esc(tmap[key]) + "</span>";
+                l.trans = tmap[key];
+              }
+            });
+          }
+          lines = orig;
+        }
+        state.lyrics = lines;
+        bus.emit("player:lyric", lines);
       } else {
         state.lyrics = [];
         bus.emit("player:lyric", null);

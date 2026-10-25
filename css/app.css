@@ -1853,6 +1853,36 @@ textarea.field-input { height: auto; padding: 10px 13px; resize: vertical; }
 }
 .lyric-empty { color: var(--text-3); font-size: 0.86rem; padding: 20px 4px; }
 
+/* 逐字卡拉OK（仅正在播放页） */
+.np-lyrics-karaoke .lyric-line.active {
+  color: var(--text-2);
+  font-size: 1.1rem;
+  font-weight: 600;
+  transform: scale(1.02);
+  text-shadow: none;
+}
+.np-lyrics-karaoke .lyric-line .kw {
+  display: inline-block;
+  color: var(--text-3);
+  will-change: color, filter;
+  transition: color var(--dur-2) var(--ease-out), filter var(--dur-2) var(--ease-out);
+}
+.np-lyrics-karaoke .lyric-line .kw.on {
+  color: var(--text-2);   /* 已唱过的行：浅亮、不发光，把高光留给当前行 */
+}
+.np-lyrics-karaoke .lyric-line.active .kw.on {
+  color: var(--accent-text);
+  /* drop-shadow 走合成器、不进字形缓存，规避逐帧 text-shadow 在 Linux Chromium 的 fd 泄漏 */
+  filter: drop-shadow(0 0 10px var(--accent-glow));
+}
+.lyric-trans-row {
+  font-size: 0.82rem;
+  color: var(--text-3);
+  margin-top: 4px;
+  opacity: 0.72;
+  line-height: 1.4;
+}
+
 /* 队列列表 */
 .q-item {
   display: flex;

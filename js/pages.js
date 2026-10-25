@@ -1230,17 +1230,38 @@
     const el = page(html);
 
     // 歌词渲染
+    function mainText(l) {
+      // 去掉译文 span，取纯主歌文本（供伪逐字退化使用）
+      return l.text.replace(/<span class='lyric-trans'>[\s\S]*?<\/span>/g, "");
+    }
+    function pseudoWords(text, t, nextT) {
+      const chars = Array.from(text);
+      if (!chars.length) return null;
+      const dur = Math.max(nextT - t, 1.5);
+      const step = dur / chars.length;
+      return chars.map((c, i) => ({ text: c, start: t + step * i, end: t + step * (i + 1) }));
+    }
     function renderLyric() {
       const pane = $("#npLyricPane", el);
       const lyrics = P().state.lyrics;
+      const mode = C.getSettings().lyricMode || "fade";
       if (!lyrics || !lyrics.length) {
         pane.innerHTML = '<div class="np-lyrics"><div class="lyric-empty">' + (npSong.external ? "暂无歌词" : "本地曲目暂无歌词，播放网易云 / QQ 音乐歌曲可自动加载") + "</div></div>";
         return;
       }
-      pane.innerHTML =
-        '<div class="np-lyrics" id="npLyricScroll">' +
-        lyrics.map((l, i) => '<div class="lyric-line" data-li="' + i + '">' + l.text + "</div>").join("") +
-        "</div>";
+      const html = lyrics.map((l, i) => {
+        const isK = mode === "karaoke";
+        const words = isK ? (l.words || pseudoWords(mainText(l), l.t, lyrics[i + 1] ? lyrics[i + 1].t : l.t + 4)) : null;
+        let inner;
+        if (isK && words) {
+          inner = words.map((w) => '<span class="kw" data-s="' + w.start.toFixed(3) + '" data-e="' + w.end.toFixed(3) + '">' + C.esc(w.text) + "</span>").join("");
+          if (l.trans) inner += '<div class="lyric-trans-row">' + C.esc(l.trans) + "</div>";
+        } else {
+          inner = l.text;
+        }
+        return '<div class="lyric-line' + (isK && words ? " lyric-line--karaoke" : "") + '" data-li="' + i + '">' + inner + "</div>";
+      }).join("");
+      pane.innerHTML = '<div class="np-lyrics' + (mode === "karaoke" ? " np-lyrics-karaoke" : "") + '" id="npLyricScroll">' + html + "</div>";
       // 重新渲染后立刻对齐当前播放进度：否则要等下一次 lyricline 事件才高亮，
       // 中途进入页面 / 切歌时会看到歌词停在中间不动。
       const box = $("#npLyricScroll", el);
@@ -1252,6 +1273,7 @@
           C.centerInScroll(box, line, false); // 首帧直接定位，不做平滑滚动
         }
       }
+      if (mode === "karaoke") startKaraoke();
     }
     function renderQueue() {
       const pane = $("#npQueuePane", el);
@@ -1449,6 +1471,8 @@
 
     // 歌词行高亮
     const onLyricLine = (idx) => {
+      // 逐字卡拉OK 模式下，高亮 / 已唱行状态 / 逐字点亮全部由 startKaraoke 的 rAF 接管
+      if ((C.getSettings().lyricMode || "fade") === "karaoke") return;
       const box = $("#npLyricScroll", el);
       $$("#npLyricPane .lyric-line", el).forEach((l, i) => {
         const on = i === idx;
@@ -1460,6 +1484,46 @@
       });
     };
     bus.on("player:lyricline", onLyricLine);
+
+    // ---- 逐字卡拉OK 驱动（仅 karaoke 模式，仅正在播放页）----
+    // 思路来自 Folia：每个字只持 waiting / active / passed 三态，状态跳变才改 DOM class；
+    // 用 rAF 读 audio.currentTime 驱动，只处理当前行，历史行整行置亮、未来行保持暗。
+    let karaokeRAF = 0;
+    let karaokeLines = [];
+    function stopKaraoke() { if (karaokeRAF) { cancelAnimationFrame(karaokeRAF); karaokeRAF = 0; } }
+    function startKaraoke() {
+      stopKaraoke();
+      if ((C.getSettings().lyricMode || "fade") !== "karaoke") return;
+      let lastIdx = -999;
+      const tick = () => {
+        const box = $("#npLyricScroll", el);
+        if (!box || !box.isConnected) { stopKaraoke(); return; } // 离开播放页自动停止
+        const idx = P().state.lyricIndex;
+        if (idx !== lastIdx) {
+          karaokeLines = Array.from(box.querySelectorAll(".lyric-line"));
+          karaokeLines.forEach((l, i) => {
+            l.classList.toggle("active", i === idx);
+            const kws = l.querySelectorAll(".kw");
+            if (i < idx) kws.forEach((kw) => kw.classList.add("on"));      // 已唱过：整行点亮
+            else kws.forEach((kw) => kw.classList.remove("on"));            // 未唱 / 当前：待点亮
+          });
+          const cur = karaokeLines[idx];
+          if (cur) C.centerInScroll(box, cur);
+          lastIdx = idx;
+        }
+        const line = karaokeLines[idx];
+        if (line) {
+          const t = P().audio.currentTime;
+          line.querySelectorAll(".kw").forEach((kw) => {
+            const s = parseFloat(kw.dataset.s), e = parseFloat(kw.dataset.e);
+            const on = t >= s && t < e + 0.04;
+            if (on !== kw.classList.contains("on")) kw.classList.toggle("on", on);
+          });
+        }
+        karaokeRAF = requestAnimationFrame(tick);
+      };
+      karaokeRAF = requestAnimationFrame(tick);
+    }
     // 歌词到达/清空后总是重绘一次，顺带对齐当前进度（只在有容器时重绘会残留上一首的歌词）
     bus.on("player:lyric", () => renderLyric());
     bus.on("player:queue", () => {
@@ -1602,6 +1666,11 @@
       "</div></div></div>" +
       '<div class="set-row"><div class="set-info"><div class="set-name">触感反馈</div><div class="set-desc">支持震动的设备上播放操作时轻震</div></div>' +
       '<div class="set-ctrl"><button class="switch' + (s.haptics ? " on" : "") + '" id="stHaptic" role="switch" aria-checked="' + s.haptics + '" aria-label="触感反馈"></button></div></div>' +
+      '<div class="set-row"><div class="set-info"><div class="set-name">歌词模式</div><div class="set-desc">逐字卡拉OK 需网易云逐字歌词；其他音源自动按行时长均匀揭示</div></div>' +
+      '<div class="set-ctrl"><div class="chip-row" id="stLyricMode">' +
+      '<button class="chip' + (s.lyricMode !== "karaoke" ? " active" : "") + '" data-lm="fade">整行渐显</button>' +
+      '<button class="chip' + (s.lyricMode === "karaoke" ? " active" : "") + '" data-lm="karaoke">逐字卡拉OK</button>' +
+      "</div></div></div>" +
       "</div></div>" +
 
       '<div class="set-section"><div class="sec-head"><div class="sec-title">键盘快捷键</div></div><div class="set-card">' +
@@ -1746,6 +1815,15 @@
         requestAnimationFrame(() => { const v = document.getElementById("view"); if (v) v.scrollTop = keep; });
       });
     }
+    // 歌词模式
+    $$("[data-lm]", el).forEach((b) =>
+      b.addEventListener("click", () => {
+        const v = b.dataset.lm;
+        C.saveSettings({ lyricMode: v });
+        $$("[data-lm]", el).forEach((x) => x.classList.toggle("active", x === b));
+        UI().toast(v === "karaoke" ? "已切换到逐字卡拉OK" : "已切换到整行渐显");
+      })
+    );
     // 触感
     $("#stHaptic", el).addEventListener("click", () => {
       const on = !C.getSettings().haptics;

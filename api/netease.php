@@ -214,7 +214,7 @@ switch ($action) {
         $cached = nc_cache_get($cacheKey, 3600);
         if ($cached !== null) { respond($cached); }
 
-        $r = ncm_get('/lyric?id=' . urlencode($id));
+        $r = ncm_get('/lyric?id=' . urlencode($id) . '&lv=1&kv=1&tv=0');
         if (!$r || !isset($r['lrc']['lyric'])) {
             respond(['ok' => false, 'error' => '歌词加载失败'], 502);
         }
@@ -222,6 +222,7 @@ switch ($action) {
             'ok' => true,
             'lyric' => $r['lrc']['lyric'] ?? '',
             'tlyric' => $r['tlyric']['lyric'] ?? '',
+            'yrc' => $r['yrc']['lyric'] ?? '',   // 网易云逐字歌词（含逐字时间）
         ];
         nc_cache_set($cacheKey, $result);
         respond($result);

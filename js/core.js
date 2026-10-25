@@ -601,6 +601,7 @@
     bgPreset: "aurora",
     bgImage: "",           // 自定义背景（压缩后的 dataURL）
     sidebarMini: false,
+    lyricMode: "fade",     // 歌词模式：fade 整行渐显 | karaoke 逐字卡拉OK
   };
   function getSettings() {
     return Object.assign({}, defaultSettings, read(K.SETTINGS, {}));

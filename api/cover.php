@@ -75,7 +75,9 @@ if (is_file($cacheFile) && (time() - filemtime($cacheFile)) < 86400) {
     $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $size = curl_getinfo($ch, CURLINFO_SIZE_DOWNLOAD);
     curl_close($ch);
-    if ($code !== 200 || !$data || $size > 2097152) {
+    // 注意：带 Range 请求时 CDN 返回 206 Partial Content，不能只认 200，
+    // 否则明明取到了图也会被误判失败（表现为前端降级成歌名色，看着像"没跟封面"）。
+    if (($code !== 200 && $code !== 206) || !$data || $size > 2097152) {
         http_response_code(502);
         exit('fetch failed');
     }

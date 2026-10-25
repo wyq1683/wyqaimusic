@@ -1229,6 +1229,11 @@
       "</div>";
 
     const el = page(html);
+    // 沉浸背景挂到 .main-wrap 直属：absolute inset:0 铺满主内容区，
+    // 否则它只能铺 .np-page 那块，被 .view 的 padding 与 .page 的 1180px 居中裁出一圈边框。
+    const immerseEl = $("#npImmerse", el);
+    const mainWrapEl = document.getElementById("mainWrap");
+    if (immerseEl && mainWrapEl) mainWrapEl.appendChild(immerseEl);
 
     // 歌词渲染
     function mainText(l) {
@@ -1555,17 +1560,20 @@
       if (npTab === "queue") renderQueue();
     }
     const onCoverColor = (info) => {
-      const im = $("#npImmerse", el);
-      if (!im) return;
+      if (!immerseEl) return;
+      let bg = "linear-gradient(135deg," + info.from + "," + info.to + ")";
       if (info.coverUrl) {
-        im.style.backgroundImage = "url('api/cover.php?u=" + encodeURIComponent(info.coverUrl) + "')";
-        im.classList.add("has-cover");
-      } else {
-        im.style.backgroundImage = "linear-gradient(135deg," + info.from + "," + info.to + ")";
-        im.classList.remove("has-cover");
+        // 关键：CSS 里的 url() 是相对样式表(css/app.css)解析的，
+        // 写相对路径会变成 css/api/cover.php（404，模糊层就没图）。
+        // 这里必须转成绝对地址。
+        let abs = "api/cover.php?u=" + encodeURIComponent(info.coverUrl);
+        try { abs = new URL(abs, location.href).href; } catch (e) {}
+        bg = "url('" + abs + "')";
       }
-      im.style.setProperty("--im-from", info.from);
-      im.style.setProperty("--im-to", info.to);
+      immerseEl.style.setProperty("--im-img", bg);
+      immerseEl.style.setProperty("--im-from", info.from);
+      immerseEl.style.setProperty("--im-to", info.to);
+      immerseEl.classList.add("ready");
     };
     bus.on("player:covercolor", onCoverColor);
 
@@ -1584,6 +1592,7 @@
         bus.off("player:lyricline", onLyricLine);
         bus.off("player:changed", onSongChanged);
         bus.off("player:covercolor", onCoverColor);
+        if (immerseEl) immerseEl.remove();
         bus.off("player:state", onNpState);
         bus.off("player:time", onNpTime);
         if (specRAF) cancelAnimationFrame(specRAF);

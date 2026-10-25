@@ -21,6 +21,7 @@
   display: flex;
   flex-direction: column;
   position: relative;
+  isolation: isolate; /* 让播放页沉浸背景 z-index:-1 留在主区内，不跑到 body 壁纸之下 */
 }
 
 .view {
@@ -1778,35 +1779,41 @@ textarea.field-input { height: auto; padding: 10px 13px; resize: vertical; }
   padding-top: 8px;
   position: relative;
 }
+/* 沉浸背景：挂到 .main-wrap 直属，absolute inset:0 铺满主内容区；
+   z-index:-1 在 main-wrap 建立层叠上下文后落在内容之下、body 壁纸之上，
+   顶栏/播放条（更高层）自然盖住上下，不会露出"边框"。 */
 .np-immerse {
   position: absolute;
   inset: 0;
-  z-index: 0;
+  z-index: -1;
   overflow: hidden;
   pointer-events: none;
-  background-size: cover;
-  background-position: center;
-  transition: background-image var(--dur-4) var(--ease-out), background-color var(--dur-4) var(--ease-out);
+  opacity: 0;
+  transition: opacity var(--dur-4) var(--ease-out);
 }
+.np-immerse.ready { opacity: 1; }
+/* 图片只放在这一层并重度模糊压暗 —— 父级不放清晰原图，
+   否则会看到"原封不动贴在内容上"的观感。 */
 .np-immerse::before {
   content: "";
   position: absolute;
-  inset: -14%;
-  background: inherit;
+  inset: -18%;
+  background-image: var(--im-img, none);
   background-size: cover;
   background-position: center;
-  filter: blur(54px) brightness(.42) saturate(1.4);
-  transform: scale(1.18);
+  background-repeat: no-repeat;
+  filter: blur(68px) brightness(.34) saturate(1.35);
+  transform: scale(1.2);
 }
+/* 主色叠加 + 上下暗化：统一色调、压住杂色、保证文字可读 */
 .np-immerse::after {
   content: "";
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(180deg, rgba(5,6,12,.28), rgba(5,6,12,.6)),
-    linear-gradient(150deg, color-mix(in srgb, var(--im-from, var(--accent)) 28%, transparent), color-mix(in srgb, var(--im-to, var(--accent)) 24%, transparent) 70%);
+    linear-gradient(180deg, rgba(5,6,12,.30), rgba(5,6,12,.72)),
+    linear-gradient(150deg, color-mix(in srgb, var(--im-from, var(--accent)) 30%, transparent), color-mix(in srgb, var(--im-to, var(--accent)) 26%, transparent) 65%);
 }
-.np-page > *:not(.np-immerse) { position: relative; z-index: 1; }
 .np-cover-wrap {
   display: flex;
   flex-direction: column;

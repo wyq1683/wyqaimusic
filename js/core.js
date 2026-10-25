@@ -846,7 +846,10 @@
   function applySongAccent(song) {
     if (getSettings().accent) return; // 用户锁定主题色时不跟随
     if (!song) return;
-    if (song.themeColor) {
+    // themeColor 只有伴随 _coverGrad（真实取色）或无封面（本地歌自带配色）时才可信；
+    // 旧数据里外部歌被预置过 #7c5cff，会短路封面取色，这里放行让它重新取。
+    const stalePreset = song.themeColor === "#7c5cff" && !song._coverGrad && song.coverUrl;
+    if (song.themeColor && !stalePreset) {
       setAccent(song.themeColor);
       bus.emit("player:covercolor", {
         accent: song.themeColor,

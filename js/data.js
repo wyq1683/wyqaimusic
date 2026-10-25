@@ -111,7 +111,7 @@
     const isNetease = song.source === "netease";
     const isQQ = song.source === "qq";
     const prefix = isNetease ? "ne_" : (isQQ ? "qq_" : "au_");
-    const c = song.cover && typeof song.cover === "object" ? song.cover : (song.c || { from: "#7c5cff", to: "#ff5c9d" });
+    const c = song.cover && typeof song.cover === "object" ? song.cover : (song.c || null);
     const audioFallback = isNetease ? ("api/netease.php?action=url&id=" + song.id) : undefined;
     const full = {
       id: prefix + song.id,
@@ -123,11 +123,13 @@
       mood: song.mood || "Relax",
       dur: song.duration || 0,
       plays: 0,
-      c: { from: c.from || "#7c5cff", to: c.to || "#ff5c9d" },
+      c: { from: (c && c.from) || "#7c5cff", to: (c && c.to) || "#ff5c9d" },
       emoji: song.emoji || "🎵",
       audio: song.streamUrl || song.audio || audioFallback,
-      themeColor: c.from || "#7c5cff",
-      accentColor: c.to || "#ff5c9d",
+      // 注意：外部歌没有真实取色结果时不预置 themeColor，否则 applySongAccent
+      // 的缓存判断会短路，封面取色永远走不到 → 强调色全是默认紫 #7c5cff。
+      // 只有音源真的返回了配色对象时才带 themeColor（真实取色由 core.js 封面取色写入）。
+      ...((c && c.from) ? { themeColor: c.from, accentColor: c.to || "#ff5c9d" } : {}),
       durStr: C.fmtDur(song.duration || 0),
       vip: !!(song.vip || (isNetease && song.free === false)),
       external: true,

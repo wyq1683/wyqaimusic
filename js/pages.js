@@ -1734,7 +1734,9 @@
 
       '<div class="set-section"><div class="sec-head"><div class="sec-title">关于</div></div><div class="set-card">' +
       '<div class="set-row"><div class="set-info"><div class="set-name">Wave 音乐播放器</div><div class="set-desc">原生 JavaScript · PHP · MySQL · 部署于 InfinityFree</div></div>' +
-      '<div class="set-ctrl" style="color:var(--text-3);font-size:0.78rem">v2.1</div></div>' +
+      '<div class="set-ctrl" style="display:flex;align-items:center;gap:10px">' +
+      '<span style="color:var(--text-3);font-size:0.78rem">v' + C.VERSION + "</span>" +
+      '<button class="btn btn-ghost" id="stWhatsNew" style="height:30px">更新记录</button></div></div>' +
       '<div class="set-row"><div class="set-info"><div class="set-name">音源</div><div class="set-desc">网易云音乐 / QQ音乐 / Audius / 本地曲库</div></div></div>' +
       '<a class="set-row" href="privacy.html" target="_blank" rel="noopener"><div class="set-info"><div class="set-name">隐私政策</div><div class="set-desc">我们收集什么、怎么用、如何删除</div></div>' +
       '<span class="mr-chev">' + C.icon("external", 15) + "</span></a>" +
@@ -1867,6 +1869,10 @@
       })
     );
     // 触感
+    const wnBtn = $("#stWhatsNew", el);
+    if (wnBtn) wnBtn.addEventListener("click", () => {
+      if (global.App.WhatsNew) global.App.WhatsNew.openLatest();
+    });
     const islSw = $("#stIsland", el);
     if (islSw) islSw.addEventListener("click", () => {
       const on = C.getSettings().island === false; // 当前是关 → 打开

@@ -100,6 +100,7 @@
     audio.src = song.audio;
     audio.load();
     C.applySongAccent(song);
+    updateMediaSession(song);
     if (autoplay !== false) play();
     bus.emit("player:changed", song);
     bus.emit("player:lyric", null);
@@ -199,23 +200,69 @@
   const capMediaSession =
     (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.MediaSession) || null;
 
-  function updateMediaSession(song) {
+  // 系统灵动岛 / 灵动胶囊 / 锁屏 / 通知栏读的是 MediaSession 的三样东西：
+  // 元数据（含封面位图）、播放状态、进度。缺一样就只剩个空壳或不出现。
+  function artworkFor(song) {
+    if (!song || !song.coverUrl) return [];
+    let u = song.coverUrl;
+    // 网易云图床支持按尺寸裁剪；通知大图不需要原图，压到 400 能少占内存、少卡原生解码
+    if (/music\.126\.net/.test(u) && u.indexOf("?") < 0) u += "?param=400y400";
+    // 必须走同源代理：直连 CDN 原生解码会拿到重定向/防盗链的空流，
+    // 之前的版本正是因为这点把封面整个关掉了。
+    const src = (global.location.origin || "") + "/api/cover.php?u=" + encodeURIComponent(u);
+    return [{ src: src, sizes: "400x400", type: "image/jpeg" }];
+  }
+
+  function sessionMeta(song) {
     if (!song) return;
+    const art = artworkFor(song);
     if ("mediaSession" in navigator) {
       try {
         navigator.mediaSession.metadata = new MediaMetadata({
-          title: song.title,
-          artist: song.artist,
-          album: song.album,
+          title: song.title, artist: song.artist, album: song.album, artwork: art,
         });
       } catch (e) { /* 旧浏览器 */ }
     }
     if (capMediaSession && capMediaSession.setMetadata) {
-      // Capacitor APK：仅同步文字（封面 URL 会导致原生崩溃）
       try {
-        capMediaSession.setMetadata({ title: song.title, artist: song.artist, album: song.album });
+        capMediaSession.setMetadata({
+          title: song.title, artist: song.artist, album: song.album, artwork: art,
+        });
       } catch (e) { /* 忽略 */ }
     }
+  }
+
+  function sessionState(playing) {
+    if ("mediaSession" in navigator) {
+      try { navigator.mediaSession.playbackState = playing ? "playing" : "paused"; } catch (e) { /* 忽略 */ }
+    }
+    if (capMediaSession && capMediaSession.setPlaybackState) {
+      try { capMediaSession.setPlaybackState({ playbackState: playing ? "playing" : "paused" }); } catch (e) { /* 忽略 */ }
+    }
+  }
+
+  let posAt = 0;
+  function sessionPosition(force) {
+    const a = audio;
+    if (!a || !isFinite(a.duration) || a.duration <= 0) return;
+    const now = Date.now();
+    if (!force && now - posAt < 900) return;
+    posAt = now;
+    const pos = Math.min(Math.max(a.currentTime || 0, 0), a.duration);
+    const payload = { duration: a.duration, playbackRate: a.playbackRate || 1, position: pos };
+    if ("mediaSession" in navigator && navigator.mediaSession.setPositionState) {
+      try { navigator.mediaSession.setPositionState(payload); } catch (e) { /* 忽略 */ }
+    }
+    if (capMediaSession && capMediaSession.setPositionState) {
+      try { capMediaSession.setPositionState(payload); } catch (e) { /* 忽略 */ }
+    }
+  }
+
+  function updateMediaSession(song) {
+    if (!song) return;
+    sessionMeta(song);
+    sessionState(!!state.playing);
+    sessionPosition(true);
   }
 
   function setupMediaSession() {
@@ -226,7 +273,19 @@
         ms.setActionHandler("pause", pause);
         ms.setActionHandler("previoustrack", prev);
         ms.setActionHandler("nexttrack", () => next(false));
-      } catch (e) { /* 部分action不支持 */ }
+        ms.setActionHandler("seekto", (d) => { if (d && d.seekTime != null) seekTo(d.seekTime); });
+      } catch (e) { /* 部分 action 不支持 */ }
+    }
+    // APK 里通知上的按钮走原生回调，同样要注册，否则点了没反应
+    if (capMediaSession && capMediaSession.setActionHandler) {
+      const bind = (action, fn) => {
+        try { capMediaSession.setActionHandler({ action: action }, fn); } catch (e) { /* 忽略 */ }
+      };
+      bind("play", play);
+      bind("pause", pause);
+      bind("previoustrack", prev);
+      bind("nexttrack", () => next(false));
+      bind("seekto", (d) => { if (d && d.seekTime != null) seekTo(d.seekTime); });
     }
   }
 
@@ -357,29 +416,26 @@
   /* ==================== 音频事件 ==================== */
   audio.addEventListener("play", () => {
     state.playing = true;
-    if ("mediaSession" in navigator) { try { navigator.mediaSession.playbackState = "playing"; } catch (e) {} }
+    sessionState(true);
+    // 原生前台服务是异步绑定的：启动瞬间推的元数据会被丢掉，
+    // 这里等它起来再补一次（通知栏的封面/歌名就靠这次）。
+    setTimeout(() => { if (state.current && state.playing) sessionMeta(state.current); }, 400);
+    setTimeout(() => { if (state.current && state.playing) { sessionMeta(state.current); sessionPosition(true); } }, 1500);
     bus.emit("player:state", true);
   });
   audio.addEventListener("pause", () => {
     state.playing = false;
-    if ("mediaSession" in navigator) { try { navigator.mediaSession.playbackState = "paused"; } catch (e) {} }
+    sessionState(false);
     bus.emit("player:state", false);
   });
   audio.addEventListener("timeupdate", () => {
     bus.emit("player:time", { cur: audio.currentTime, dur: audio.duration || 0 });
+    sessionPosition(false);
     updateLyricIndex();
   });
   audio.addEventListener("loadedmetadata", () => {
     bus.emit("player:time", { cur: audio.currentTime, dur: audio.duration || 0 });
-    if ("mediaSession" in navigator && navigator.mediaSession.setPositionState && isFinite(audio.duration)) {
-      try {
-        navigator.mediaSession.setPositionState({
-          duration: audio.duration,
-          playbackRate: audio.playbackRate,
-          position: Math.min(audio.currentTime, audio.duration),
-        });
-      } catch (e) { /* 忽略 */ }
-    }
+    sessionPosition(true);
   });
   audio.addEventListener("waiting", () => { state.loading = true; bus.emit("player:loading", true); });
   audio.addEventListener("playing", () => { state.loading = false; bus.emit("player:loading", false); });

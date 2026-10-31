@@ -125,7 +125,12 @@
     EXTERNAL: PREFIX + "external_songs",
     SETTINGS: PREFIX + "settings", // 主题/背景/音量增强等
     SEARCH_HISTORY: PREFIX + "search_history",
+    VERSION_SEEN: PREFIX + "version_seen",   // 上次看过的版本号（更新公告只弹一次）
   };
+
+  // 单一版本号来源：侧栏、设置页、更新公告都读它。
+  // 每次发版改这里 + index.html 的缓存戳。
+  const VERSION = "2.7.1";
 
   function read(key, fallback) {
     try {
@@ -878,6 +883,7 @@
   /* ==================== 导出 ==================== */
   global.App = global.App || {};
   global.App.Core = {
+    VERSION,
     $, $$, el, fmtDur, fmtTime, fmtNum, esc, debounce, icon, showIcon, centerInScroll, gradientFor, applyBgPreset, BG_GRADIENTS, compressImage,
     bus, read, write,
     K, PREFIX,

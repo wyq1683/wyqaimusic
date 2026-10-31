@@ -2894,3 +2894,69 @@ body.np-landscape .island { display: none !important; }
 @media (prefers-reduced-motion: reduce) {
   .island { transition: opacity 0.15s ease; transform: translateX(-50%); }
 }
+
+/* ==================== 13. 更新公告 ====================
+   弹窗本体沿用 .modal，这里只负责内容排版：
+   版本号是唯一的主视觉（大号 + 等宽数字），条目用细圆点排列，不堆图标。 */
+.wn { display: flex; flex-direction: column; gap: 14px; }
+.wn-top { display: flex; align-items: baseline; gap: 10px; }
+.wn-ver {
+  font-family: var(--font-num);
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  background: linear-gradient(135deg, var(--accent-text), var(--accent));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.wn-date { font-size: 0.74rem; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.wn-lead {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.7;
+  color: var(--text-2);
+}
+.wn-list { list-style: none; margin: 2px 0 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.wn-item { display: flex; gap: 10px; align-items: flex-start; }
+.wn-dot {
+  flex: none;
+  width: 6px; height: 6px;
+  margin-top: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 10px var(--accent-glow);
+}
+.wn-item-txt { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.wn-item-txt b { font-size: 0.84rem; font-weight: 600; color: var(--text-1); }
+.wn-item-txt span { font-size: 0.8rem; line-height: 1.65; color: var(--text-3); }
+.wn-note {
+  margin: 2px 0 0;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  background: var(--glass-card);
+  border: 1px solid var(--hairline);
+  font-size: 0.76rem;
+  line-height: 1.65;
+  color: var(--text-3);
+}
+.wn-more {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.78rem;
+  color: var(--accent-text);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  padding-bottom: 1px;
+  transition: border-color var(--dur-1) ease;
+}
+.wn-more:hover { border-bottom-color: currentColor; }
+.wn-more span { font-size: 0.72rem; opacity: 0.8; }
+
+@media (max-width: 480px) {
+  .wn-ver { font-size: 1.42rem; }
+  .wn-lead { font-size: 0.86rem; }
+}

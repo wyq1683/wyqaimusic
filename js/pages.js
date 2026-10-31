@@ -1737,6 +1737,10 @@
       '<div class="set-ctrl" style="display:flex;align-items:center;gap:10px">' +
       '<span style="color:var(--text-3);font-size:0.78rem">v' + C.VERSION + "</span>" +
       '<button class="btn btn-ghost" id="stWhatsNew" style="height:30px">更新记录</button></div></div>' +
+      '<div class="set-row"><div class="set-info"><div class="set-name">安卓客户端</div><div class="set-desc" id="stApkDesc">安装包下载 · 覆盖安装不丢数据</div></div>' +
+      '<div class="set-ctrl"><button class="btn btn-primary" id="stApkDl" style="height:32px">下载安装包</button></div></div>' +
+      '<div class="set-row"><div class="set-info"><div class="set-name">检查更新</div><div class="set-desc">网页版随刷新自动更新，安装包需手动覆盖</div></div>' +
+      '<div class="set-ctrl"><button class="btn btn-ghost" id="stCheckUpd" style="height:32px">检查更新</button></div></div>' +
       '<div class="set-row"><div class="set-info"><div class="set-name">音源</div><div class="set-desc">网易云音乐 / QQ音乐 / Audius / 本地曲库</div></div></div>' +
       '<a class="set-row" href="privacy.html" target="_blank" rel="noopener"><div class="set-info"><div class="set-name">隐私政策</div><div class="set-desc">我们收集什么、怎么用、如何删除</div></div>' +
       '<span class="mr-chev">' + C.icon("external", 15) + "</span></a>" +
@@ -1869,6 +1873,15 @@
       })
     );
     // 触感
+    const apkDl = $("#stApkDl", el);
+    if (apkDl) apkDl.addEventListener("click", () => {
+      if (global.App.Updater) global.App.Updater.download();
+    });
+    const chkBtn = $("#stCheckUpd", el);
+    if (chkBtn) chkBtn.addEventListener("click", () => {
+      if (global.App.Updater) global.App.Updater.check();
+    });
+    if (global.App.Updater) global.App.Updater.fillAbout(el);
     const wnBtn = $("#stWhatsNew", el);
     if (wnBtn) wnBtn.addEventListener("click", () => {
       if (global.App.WhatsNew) global.App.WhatsNew.openLatest();

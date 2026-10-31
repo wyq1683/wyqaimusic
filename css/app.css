@@ -2960,3 +2960,13 @@ body.np-landscape .island { display: none !important; }
   .wn-ver { font-size: 1.42rem; }
   .wn-lead { font-size: 0.86rem; }
 }
+
+/* 侧栏底部用按钮承载「下载 App」（要拦截点击、不能跳转） */
+button.sb-link {
+  background: none;
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+}

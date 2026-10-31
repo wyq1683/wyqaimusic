@@ -1,0 +1,17 @@
+{
+  "version": "2.7.2",
+  "released": "2026-11-01",
+  "releaseUrl": "https://github.com/wyq1683/wyqaimusic/releases/tag/v2.7.2",
+  "highlights": [
+    "侧栏新增「下载 App」入口",
+    "设置 → 关于可检查更新、下载最新安装包",
+    "版本号统一到一处，不再对不上"
+  ],
+  "apk": {
+    "version": "1.4",
+    "size": "3.6 MB",
+    "minAndroid": "7.0",
+    "url": "https://github.com/wyq1683/wyqaimusic/releases/download/v2.7.2/wave-music-v1.4.apk",
+    "notes": "同签名覆盖安装，歌单与设置在本地，不会丢。首次播放如弹出通知权限，请允许——系统胶囊靠它显示。"
+  }
+}

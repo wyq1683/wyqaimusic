@@ -2238,7 +2238,7 @@ textarea.field-input { height: auto; padding: 10px 13px; resize: vertical; }
   .detail-hero { flex-direction: column; align-items: flex-start; padding: 20px; }
   .detail-hero .dh-art { width: 120px; height: 120px; font-size: 2.4rem; }
   .np-cover { width: min(240px, 66vw); font-size: 3.2rem; }
-  .toast-wrap { bottom: calc(var(--player-h) + var(--tabbar-h) + 16px); }
+  .toast-wrap { bottom: calc(var(--player-h) + var(--tabbar-h) + var(--safe-b) + 16px); }
 }
 
 /* ==================== 7. 正在播放页：沉浸 / 横屏 / 频谱 ==================== */
@@ -2253,7 +2253,7 @@ textarea.field-input { height: auto; padding: 10px 13px; resize: vertical; }
 }
 .np-mode-exit {
   position: fixed;
-  top: 14px; right: 16px;
+  top: calc(14px + var(--safe-t)); right: calc(16px + var(--safe-r));
   z-index: 70;
   display: inline-flex;
   align-items: center;

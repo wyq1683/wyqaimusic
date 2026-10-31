@@ -2773,3 +2773,124 @@ body.np-landscape #npQueuePane { max-height: calc(100dvh - 150px); }
 }
 .auth-legal a { color: var(--accent-text); }
 .auth-legal a:hover { text-decoration: underline; }
+
+/* ==================== 12. 灵动岛（顶部播放胶囊） ====================
+   顶栏下方居中悬浮，收起是 46px 的小胶囊，点开成 400px 的播放卡片。
+   不占用顶栏的搜索位，也不替代底部播放条 —— 它只负责「一眼看到在放什么 + 顺手切歌」。 */
+.island {
+  --isl-accent: var(--accent);
+  position: fixed;
+  top: calc(var(--safe-t) + var(--topbar-h) + 10px);
+  left: 50%;
+  width: 214px;
+  height: 46px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 8px 6px 6px;
+  border-radius: 23px;
+  background: var(--glass-bg-strong);
+  border: 1px solid var(--hairline-strong);
+  box-shadow: var(--shadow-2), 0 0 26px -14px var(--isl-accent);
+  backdrop-filter: blur(22px) saturate(1.5);
+  -webkit-backdrop-filter: blur(22px) saturate(1.5);
+  color: var(--text-1);
+  z-index: 41;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-50%) translateY(-10px) scale(0.92);
+  transform-origin: top center;
+  transition: width 0.44s var(--ease-spring), height 0.44s var(--ease-spring),
+    border-radius 0.32s var(--ease-out), padding 0.32s var(--ease-out),
+    opacity 0.22s ease, transform 0.38s var(--ease-spring);
+  overflow: hidden;
+}
+.island.show { opacity: 1; pointer-events: auto; transform: translateX(-50%) translateY(0) scale(1); }
+
+.isl-art {
+  position: relative;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  overflow: hidden;
+  background: rgb(255 255 255 / 0.08);
+  transition: width 0.4s var(--ease-spring), height 0.4s var(--ease-spring), border-radius 0.3s;
+}
+.isl-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.isl-img[hidden] { display: none; }
+.isl-ph { position: absolute; inset: 0; display: grid; place-items: center; font-size: 15px; color: #fff; }
+.isl-ph[hidden] { display: none; }
+.isl-eq {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 15px;
+  display: flex; align-items: flex-end; justify-content: center; gap: 2px;
+  padding: 0 3px 2px;
+  background: linear-gradient(180deg, transparent, rgb(0 0 0 / 0.45));
+}
+.isl-eq i { width: 2.5px; height: 4px; border-radius: 1.5px; background: #fff; opacity: 0.88; }
+
+.isl-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.isl-line { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.isl-title {
+  flex: 1; min-width: 0;
+  font-size: 12.5px; font-weight: 600; letter-spacing: 0.01em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.isl-open {
+  display: none; flex: none; width: 20px; height: 20px; place-items: center;
+  border-radius: 50%; color: var(--text-3); background: none; border: 0; cursor: pointer;
+}
+.isl-open:hover { background: var(--glass-card-hover); color: var(--text-1); }
+.isl-meta { display: none; align-items: center; gap: 8px; font-size: 11px; color: var(--text-3); min-width: 0; }
+.isl-artist { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.isl-time { margin-left: auto; font-variant-numeric: tabular-nums; font-size: 10.5px; }
+.isl-prog { display: none; height: 2px; border-radius: 2px; background: rgb(255 255 255 / 0.14); overflow: hidden; margin-top: 3px; }
+.isl-prog i { display: block; height: 100%; width: 0; border-radius: 2px; background: var(--isl-accent); transition: width 0.3s linear; }
+
+.isl-ctl { display: flex; align-items: center; gap: 2px; flex: none; }
+.isl-btn {
+  display: none; width: 26px; height: 26px; place-items: center;
+  border: 0; border-radius: 50%; background: none; color: var(--text-2); cursor: pointer;
+}
+.isl-btn.isl-play { display: grid; width: 30px; height: 30px; background: var(--isl-accent); color: #fff; box-shadow: 0 4px 14px -6px var(--isl-accent); }
+.isl-btn:hover { color: var(--text-1); background: var(--glass-card-hover); }
+.isl-btn.isl-play:hover { color: #fff; background: var(--isl-accent); filter: brightness(1.08); }
+
+/* 展开态 */
+.island.is-expanded {
+  width: 400px;
+  height: 94px;
+  border-radius: var(--r-xl);
+  padding: 10px 12px 10px 10px;
+  align-items: flex-start;
+  gap: 11px;
+}
+.island.is-expanded .isl-art { width: 66px; height: 66px; border-radius: 16px; cursor: pointer; }
+.island.is-expanded .isl-body { gap: 3px; padding-top: 2px; }
+.island.is-expanded .isl-title { font-size: 14px; }
+.island.is-expanded .isl-open { display: grid; }
+.island.is-expanded .isl-meta { display: flex; }
+.island.is-expanded .isl-prog { display: block; }
+.island.is-expanded .isl-ctl { align-self: flex-end; gap: 4px; }
+.island.is-expanded .isl-btn { display: grid; }
+
+/* 有胶囊时不压在内容上：内容区让出 56px（46 高 + 10 间距），
+   否则首页问候语、搜索框都会被盖住一半。展开态的额外高度是临时的，允许压住内容。 */
+body.has-island .view { padding-top: calc(26px + 56px); }
+
+/* 沉浸 / 横屏播放时整块让位（页面自己已是全屏） */
+body.immersive .island,
+body.np-landscape .island { display: none !important; }
+
+@media (max-width: 900px) {
+  body.has-island .view { padding-top: calc(18px + 56px); }
+}
+@media (max-width: 600px) {
+  .island { width: 198px; }
+  .island.is-expanded { width: calc(100vw - 24px); height: 88px; }
+  .island.is-expanded .isl-art { width: 60px; height: 60px; border-radius: 15px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .island { transition: opacity 0.15s ease; transform: translateX(-50%); }
+}

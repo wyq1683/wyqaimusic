@@ -1645,6 +1645,9 @@
       accents.map((a) => '<button class="swatch' + (s.accent === a.val ? " active" : "") + '" data-accent="' + a.val + '" title="' + a.name + '" style="' + (a.val ? "background:" + a.val + ";color:" + a.val : "background:conic-gradient(#7c5cff,#ff5c9d,#38bdf8,#7c5cff)") + '"></button>').join("") +
       "</div></div></div>" +
 
+      '<div class="set-row"><div class="set-info"><div class="set-name">灵动岛</div><div class="set-desc">顶栏下方悬浮胶囊：显示正在播放的封面、歌名与实时频谱，点一下展开上/下一首与进度</div></div>' +
+      '<div class="set-ctrl"><button class="switch' + (s.island !== false ? " on" : "") + '" id="stIsland" role="switch" aria-checked="' + (s.island !== false) + '" aria-label="灵动岛"></button></div></div>' +
+
       '<div class="set-row" style="display:block"><div class="set-info"><div class="set-name">背景</div><div class="set-desc">极光 / 8 组渐变 / 上传自己的图片</div></div>' +
       '<div class="bg-picker" id="stBgs">' +
       bgPresetBtn("aurora", "极光", "", s.bgPreset) +
@@ -1864,6 +1867,13 @@
       })
     );
     // 触感
+    const islSw = $("#stIsland", el);
+    if (islSw) islSw.addEventListener("click", () => {
+      const on = C.getSettings().island === false; // 当前是关 → 打开
+      C.saveSettings({ island: on });
+      islSw.classList.toggle("on", on);
+      islSw.setAttribute("aria-checked", on);
+    });
     $("#stHaptic", el).addEventListener("click", () => {
       const on = !C.getSettings().haptics;
       C.saveSettings({ haptics: on });

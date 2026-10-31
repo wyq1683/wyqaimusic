@@ -72,6 +72,14 @@
   --player-h: 74px;
   --tabbar-h: 58px;
 
+  /* ---- 安全区 ----
+     安卓 targetSdk 35+ 强制 edge-to-edge，状态栏/手势区会压在 WebView 内容上；
+     env() 在桌面浏览器恒为 0，所以这些变量可以全局用，不用包媒体查询。 */
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-l: env(safe-area-inset-left, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
+
   /* ---- 字体 ---- */
   --font: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
     "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif;

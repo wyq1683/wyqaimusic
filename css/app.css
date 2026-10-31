@@ -382,12 +382,13 @@ body.sb-mini .sb-nav .nav-item { justify-content: center; }
 
 /* ==================== 3. 顶栏 ==================== */
 .topbar {
-  height: var(--topbar-h);
+  /* 全面屏/APK：状态栏压在上面时让出安全区，内容盒子仍保持 --topbar-h */
+  height: calc(var(--topbar-h) + var(--safe-t));
   flex: none;
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 0 22px;
+  padding: var(--safe-t) calc(22px + var(--safe-r)) 0 calc(22px + var(--safe-l));
   position: relative;
   z-index: 30;
 }
@@ -750,6 +751,8 @@ body[data-np="1"] .view { padding-bottom: 34px; }
   right: 0;
   width: 348px;
   max-width: 92vw;
+  padding-top: var(--safe-t);
+  padding-bottom: var(--safe-b);
   display: flex;
   flex-direction: column;
   background: var(--glass-bg-strong);
@@ -802,8 +805,8 @@ body[data-np="1"] .view { padding-bottom: 34px; }
   display: none;
   position: fixed;
   left: 0; right: 0; bottom: 0;
-  height: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
-  padding-bottom: env(safe-area-inset-bottom);
+  height: calc(var(--tabbar-h) + var(--safe-b));
+  padding-bottom: var(--safe-b);
   background: var(--glass-bg-strong);
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat, 1));
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat, 1));
@@ -2203,12 +2206,12 @@ textarea.field-input { height: auto; padding: 10px 13px; resize: vertical; }
   .search-trigger span, .search-trigger kbd { display: none; }
   .search-trigger { justify-content: center; }
   .topbar-title { display: none; }
-  .topbar { padding: 0 12px; gap: 8px; }
+  .topbar { padding: var(--safe-t) calc(12px + var(--safe-r)) 0 calc(12px + var(--safe-l)); gap: 8px; }
 
-  .view { padding: 18px 16px calc(var(--player-h) + var(--tabbar-h) + 34px); }
+  .view { padding: 18px calc(16px + var(--safe-r)) calc(var(--player-h) + var(--tabbar-h) + var(--safe-b) + 34px) calc(16px + var(--safe-l)); }
   .player-bar {
     position: fixed;
-    left: 0; right: 0; bottom: var(--tabbar-h);
+    left: 0; right: 0; bottom: calc(var(--tabbar-h) + var(--safe-b));
     z-index: 37;
     grid-template-columns: minmax(0, 1fr) auto auto;
     padding: 0 10px;
@@ -2278,7 +2281,7 @@ body.immersive .view { padding: 0; }
 body.immersive .np-page {
   max-width: 1100px;
   margin: 0 auto;
-  padding: 40px 32px;
+  padding: calc(40px + var(--safe-t)) calc(32px + var(--safe-r)) calc(40px + var(--safe-b)) calc(32px + var(--safe-l));
   min-height: 100dvh;
   justify-content: center;
 }
@@ -2301,7 +2304,7 @@ body.np-landscape .np-page {
   height: 100dvh;
   max-width: 1180px;
   margin: 0 auto;
-  padding: 18px 28px;
+  padding: calc(18px + var(--safe-t)) calc(28px + var(--safe-r)) calc(18px + var(--safe-b)) calc(28px + var(--safe-l));
   overflow: hidden;
 }
 body.np-landscape .np-cover-wrap { gap: 8px; }

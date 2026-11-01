@@ -1,10 +1,10 @@
 {
-  "version": "2.7.5",
+  "version": "2.7.6",
   "released": "2026-11-02",
-  "releaseUrl": "https://github.com/wyq1683/wyqaimusic/releases/tag/v2.7.5",
+  "releaseUrl": "https://github.com/wyq1683/wyqaimusic/releases/tag/v2.7.6",
   "highlights": [
-    "歌单记住来源，可一键同步补歌",
-    "歌单列表可一键修复全部缺歌的歌单"
+    "更新公告「知道了」可以正常关闭",
+    "设置页选项多的行不再把说明挤成竖排"
   ],
   "apk": {
     "version": "1.4",

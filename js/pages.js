@@ -1757,7 +1757,7 @@
       '<div class="set-row"><div class="set-info"><div class="set-name">主题模式</div><div class="set-desc">深色沉浸 / 浅色清新</div></div>' +
       '<div class="set-ctrl"><button class="btn btn-ghost" id="stTheme" style="height:32px">' + (s.theme === "dark" ? "切换到浅色" : "切换到深色") + "</button></div></div>" +
 
-      '<div class="set-row"><div class="set-info"><div class="set-name">主题强调色</div><div class="set-desc">默认跟随播放中歌曲的封面取色</div></div>' +
+      '<div class="set-row stack"><div class="set-info"><div class="set-name">主题强调色</div><div class="set-desc">默认跟随播放中歌曲的封面取色</div></div>' +
       '<div class="set-ctrl"><div class="swatches" id="stAccents">' +
       accents.map((a) => '<button class="swatch' + (s.accent === a.val ? " active" : "") + '" data-accent="' + a.val + '" title="' + a.name + '" style="' + (a.val ? "background:" + a.val + ";color:" + a.val : "background:conic-gradient(#7c5cff,#ff5c9d,#38bdf8,#7c5cff)") + '"></button>').join("") +
       "</div></div></div>" +
@@ -1781,7 +1781,7 @@
       '<div class="set-row"><div class="set-info"><div class="set-name">背景模糊</div><div class="set-desc">数值越大背景越朦胧</div></div>' +
       '<div class="set-ctrl"><input type="range" class="range" id="stBlur" min="0" max="30" value="' + s.bgBlur + '" /><span class="range-val" id="stBlurVal">' + s.bgBlur + "px</span></div></div>" +
 
-      '<div class="set-row"><div class="set-info"><div class="set-name">玻璃质感</div><div class="set-desc">通透 = 背景纹理清晰可见，只隔一层膜；磨砂 = 背景糊成色块，最好读</div></div>' +
+      '<div class="set-row stack"><div class="set-info"><div class="set-name">玻璃质感</div><div class="set-desc">通透 = 背景纹理清晰可见，只隔一层膜；磨砂 = 背景糊成色块，最好读</div></div>' +
       '<div class="set-ctrl"><div class="chip-row" id="stGlassStyle">' +
       '<button class="chip' + (s.glassStyle !== "clear" && s.glassStyle !== "frost" ? " active" : "") + '" data-gstyle="mid">半透</button>' +
       '<button class="chip' + (s.glassStyle === "clear" ? " active" : "") + '" data-gstyle="clear">通透</button>' +
@@ -1813,13 +1813,13 @@
       '<div class="set-card"><div class="set-row" style="display:block" id="stWallpaper">' + UI().wallpaperPanelHTML() + "</div></div></div>" +
 
       '<div class="set-section"><div class="sec-head"><div class="sec-title">播放</div></div><div class="set-card">' +
-      '<div class="set-row"><div class="set-info"><div class="set-name">音量增强</div><div class="set-desc">通过 Web Audio 增益突破 100% 音量上限</div></div>' +
+      '<div class="set-row stack"><div class="set-info"><div class="set-name">音量增强</div><div class="set-desc">通过 Web Audio 增益突破 100% 音量上限</div></div>' +
       '<div class="set-ctrl"><div class="chip-row" id="stBoost">' +
       [1, 1.25, 1.5, 2].map((b) => '<button class="chip' + (s.boost === b ? " active" : "") + '" data-boost="' + b + '">' + Math.round(b * 100) + "%</button>").join("") +
       "</div></div></div>" +
       '<div class="set-row"><div class="set-info"><div class="set-name">触感反馈</div><div class="set-desc">支持震动的设备上播放操作时轻震</div></div>' +
       '<div class="set-ctrl"><button class="switch' + (s.haptics ? " on" : "") + '" id="stHaptic" role="switch" aria-checked="' + s.haptics + '" aria-label="触感反馈"></button></div></div>' +
-      '<div class="set-row"><div class="set-info"><div class="set-name">歌词动效</div><div class="set-desc">逐字卡拉OK / 逐字打字需网易云逐字歌词；其他音源按行时长均匀揭示</div></div>' +
+      '<div class="set-row stack"><div class="set-info"><div class="set-name">歌词动效</div><div class="set-desc">逐字卡拉OK / 逐字打字需网易云逐字歌词；其他音源按行时长均匀揭示</div></div>' +
       '<div class="set-ctrl"><div class="chip-row" id="stLyricFx">' +
       '<button class="chip' + (s.lyricMode === "fade" ? " active" : "") + '" data-lm="fade">整行渐显</button>' +
       '<button class="chip' + (s.lyricMode === "karaoke" ? " active" : "") + '" data-lm="karaoke">逐字卡拉OK</button>' +

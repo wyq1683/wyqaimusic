@@ -2970,3 +2970,17 @@ button.sb-link {
   width: 100%;
   text-align: left;
 }
+
+/* 设置行：内容里带一排 chip / 色块的，别让控件区把说明挤成竖排。
+   原因：.set-ctrl 是 flex-shrink:0，chip 一多就按 max-content 撑开，
+   .set-info 被压到只剩一个字的宽度，中文就变成竖排了。 */
+.set-row.stack { flex-wrap: wrap; align-items: flex-start; }
+.set-row.stack .set-info { flex: 1 1 100%; }
+.set-row.stack .set-ctrl { flex: 1 1 100%; justify-content: flex-start; }
+.set-row.stack .chip-row { justify-content: flex-start; }
+@media (min-width: 901px) {
+  /* 宽屏空间够，说明与控件并排更好看；但仍允许折行 */
+  .set-row.stack { flex-wrap: nowrap; align-items: center; }
+  .set-row.stack .set-info { flex: 1 1 auto; }
+  .set-row.stack .set-ctrl { flex: 0 0 auto; }
+}

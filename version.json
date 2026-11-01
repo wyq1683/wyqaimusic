@@ -1,10 +1,10 @@
 {
-  "version": "2.7.9",
+  "version": "2.8.0",
   "released": "2026-11-02",
-  "releaseUrl": "https://github.com/wyq1683/wyqaimusic/releases/tag/v2.7.9",
+  "releaseUrl": "https://github.com/wyq1683/wyqaimusic/releases/tag/v2.8.0",
   "highlights": [
-    "逐字歌词铺满整行，跟着人声走",
-    "长间奏自动压缩，不再慢慢爬"
+    "正在播放页重排：一屏装下、进度条修复",
+    "去掉重复的时长与返回键"
   ],
   "apk": {
     "version": "1.4",

@@ -1307,19 +1307,21 @@
       '<button class="np-mode-exit" id="npModeExit" type="button" hidden>' + C.icon("close", 13) + " 退出</button>" +
       '<div class="np-cover-wrap">' +
       '<div class="np-cover spinning" id="npCover" style="background:linear-gradient(150deg,' + npSong.c.from + "," + npSong.c.to + ')">' +
-      (npSong.coverUrl ? '<img src="' + C.esc(npSong.coverUrl) + '" alt="' + C.esc(npSong.title) + '" />' : (npSong.emoji || "🎵")) + "</div>" +
+      (npSong.coverUrl
+        // 封面加载失败时要退回渐变/emoji，不能让 alt 文本把整块封面填满
+        ? '<img src="' + C.esc(npSong.coverUrl) + '" alt="" onerror="this.style.display=\'none\'" />'
+        : (npSong.emoji || "🎵")) + "</div>" +
       '<div><div class="np-title">' + C.esc(npSong.title) + "</div>" +
       '<div class="np-artist">' + C.esc(npSong.artist) + " · " + C.esc(npSong.album || "") + "</div>" +
       '<div class="np-badge-row">' +
       (npSong.vip ? '<span class="pf-tag" style="color:var(--warning);background:rgba(255,184,77,.12)">VIP</span>' : "") +
       '<span class="pf-tag">' + (npSong.external ? (npSong.id.indexOf("ne_") === 0 ? "网易云音乐" : npSong.id.indexOf("qq_") === 0 ? "QQ音乐" : "Audius") : "本地曲库") + "</span>" +
-      '<span class="pf-tag">' + (npSong.durStr || "") + "</span>" +
       "</div></div>" +
-      '<div class="np-modes">' +
-      '<button class="icon-btn" id="npImmersive" type="button" aria-label="全屏沉浸" title="全屏沉浸" aria-pressed="false">' + C.icon("expand", 17) + "</button>" +
-      '<button class="icon-btn" id="npLandscape" type="button" aria-label="横屏模式" title="横屏模式" aria-pressed="false">' +
-      '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="10" rx="2"/><path d="M8 21l-3-3 3-3"/><path d="M16 3l3 3-3 3"/></svg>' +
-      "</button>" +
+
+      '<div class="np-progress">' +
+      '<span class="pb-time" id="npTimeCur">0:00</span>' +
+      '<div class="pb-seek"><div class="pb-seek-fill" id="npSeekFill"></div><div class="pb-seek-knob" id="npSeekKnob"></div><input type="range" id="npSeek" min="0" max="1000" value="0" aria-label="播放进度" /></div>' +
+      '<span class="pb-time" id="npTimeDur">0:00</span>' +
       "</div>" +
       '<div class="np-controls">' +
       '<button class="icon-btn" id="npPrev" type="button" aria-label="上一首" title="上一首"><svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg></button>' +
@@ -1329,17 +1331,15 @@
       "</button>" +
       '<button class="icon-btn" id="npNext" type="button" aria-label="下一首" title="下一首"><svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6h2v12h-2z"/></svg></button>' +
       "</div>" +
-      '<div class="np-progress">' +
-      '<span class="pb-time" id="npTimeCur">0:00</span>' +
-      '<div class="pb-seek"><div class="pb-seek-fill" id="npSeekFill"></div><div class="pb-seek-knob" id="npSeekKnob"></div><input type="range" id="npSeek" min="0" max="1000" value="0" aria-label="播放进度" /></div>' +
-      '<span class="pb-time" id="npTimeDur">0:00</span>' +
-      "</div>" +
       '<canvas class="np-spec" id="npSpec" aria-hidden="true"></canvas>' +
-      '<div class="ph-actions" style="justify-content:center">' +
+      '<div class="ph-actions np-actions">' +
       '<button class="icon-btn" id="npFav" aria-label="收藏" aria-pressed="' + C.isFavorite(npSong.id) + '">' + C.icon(C.isFavorite(npSong.id) ? "heart-fill" : "heart", 19) + "</button>" +
-      '<button class="icon-btn" id="npAddPl" aria-label="添加到歌单">' + C.icon("playlist", 19) + "</button>" +
+      '<button class="icon-btn" id="npAddPl" aria-label="添加到歌单" title="添加到歌单">' + C.icon("plus", 19) + "</button>" +
       '<button class="icon-btn" id="npShare" aria-label="分享">' + C.icon("share", 19) + "</button>" +
-      '<button class="icon-btn" id="npBack" aria-label="返回">' + C.icon("arrow-left", 19) + "</button>" +
+      '<button class="icon-btn np-mode-btn" id="npImmersive" type="button" aria-label="全屏沉浸" title="全屏沉浸" aria-pressed="false">' + C.icon("expand", 18) + "</button>" +
+      '<button class="icon-btn np-mode-btn" id="npLandscape" type="button" aria-label="横屏模式" title="横屏模式" aria-pressed="false">' +
+      '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="10" rx="2"/><path d="M8 21l-3-3 3-3"/><path d="M16 3l3 3-3 3"/></svg>' +
+      "</button>" +
       "</div></div>" +
 
       '<div class="np-side"><div class="social-tabs" style="margin-bottom:14px">' +
@@ -1764,7 +1764,7 @@
     if (C.isFavorite(npSong.id)) favBtn.style.color = "var(--danger)";
     $("#npAddPl", el).addEventListener("click", () => UI().openPlaylistPicker(npSong));
     $("#npShare", el).addEventListener("click", () => UI().openShareModal(npSong));
-    $("#npBack", el).addEventListener("click", goBack);
+    // 返回键已移除：顶栏本身就有返回，这一行按钮重复且挤占了歌词空间
     return el;
   }
 

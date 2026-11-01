@@ -1296,6 +1296,11 @@
       return page(UI().emptyState("music", "还没有开始播放", "选一首歌，进入沉浸模式", '<a class="btn btn-primary" href="#/library">去曲库</a>'));
     }
     let npSong = song0; // 跟随 player:changed 原地更新，避免整页重挂载
+    // 逐字卡拉OK 的状态：必须声明在 renderLyric 之前。
+    // 之前放在函数末尾，首次 renderLyric 时命中 TDZ，进播放页直接抛
+    // "Cannot access 'karaokeRAF' before initialization"，卡拉OK 整块挂掉。
+    let karaokeRAF = 0;
+    let karaokeLines = [];
     let html =
       '<div class="np-page">' +
       '<div class="np-immerse" id="npImmerse"></div>' +
@@ -1357,12 +1362,30 @@
       // 去掉译文 span，取纯主歌文本（供伪逐字退化使用）
       return l.text.replace(/<span class='lyric-trans'>[\s\S]*?<\/span>/g, "");
     }
+    // LRC 只有行时间，没有逐字时间。把整行均摊到「到下一行之前的全部间隙」是错的：
+    // 间奏/尾奏一长，人早就唱完了，字却还在慢慢爬。
+    // 这里按「文字自然语速」估一个演唱时长，再和间隙取小。
     function pseudoWords(text, t, nextT) {
       const chars = Array.from(text);
       if (!chars.length) return null;
-      const dur = Math.max(nextT - t, 1.5);
-      const step = dur / chars.length;
-      return chars.map((c, i) => ({ text: c, start: t + step * i, end: t + step * (i + 1) }));
+      const weight = (c) => {
+        if (/\s/.test(c)) return 0.12;
+        if (/[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]/.test(c)) return 1;   // 中日韩：一字一拍
+        if (/[a-z]/i.test(c)) return 0.34;
+        if (/[0-9]/.test(c)) return 0.45;
+        if (/[，。！？、；：,.!?;:'"“”‘’（）()\[\]—-]/.test(c)) return 0.2;
+        return 0.5;
+      };
+      const UNIT = 0.19;                    // 权重 1 对应的秒数
+      const gap = Math.max(nextT - t, 0.6);
+      const total = chars.reduce((a, c) => a + weight(c), 0);
+      const step = Math.min(total * UNIT, gap) / total;
+      let acc = 0;
+      return chars.map((c) => {
+        const start = t + acc * step;
+        acc += weight(c);
+        return { text: c, start: start, end: t + acc * step };
+      });
     }
     function renderLyric() {
       const pane = $("#npLyricPane", el);
@@ -1612,8 +1635,6 @@
     // ---- 逐字卡拉OK 驱动（仅 karaoke 模式，仅正在播放页）----
     // 思路来自 Folia：每个字只持 waiting / active / passed 三态，状态跳变才改 DOM class；
     // 用 rAF 读 audio.currentTime 驱动，只处理当前行，历史行整行置亮、未来行保持暗。
-    let karaokeRAF = 0;
-    let karaokeLines = [];
     function stopKaraoke() { if (karaokeRAF) { cancelAnimationFrame(karaokeRAF); karaokeRAF = 0; } }
     function startKaraoke() {
       stopKaraoke();

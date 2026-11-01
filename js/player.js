@@ -346,6 +346,83 @@
     return lines.length ? lines : null;
   }
 
+  // 把接口返回的 lyric/yrc 统一转成 [{t,text,words?,trans?}]
+  function parseLyricPayload(data, isNetease) {
+    if (!data || !data.ok) return null;
+    if (isNetease && data.yrc) {
+      const y = parseYrc(data.yrc, data.tlyric || "");
+      if (y && y.length) return y;
+    }
+    if (!data.lyric) return null;
+    const orig = parseLrc(data.lyric);
+    if (!orig.length) return null;
+    const trans = parseLrc(data.tlyric || "");
+    if (trans.length) {
+      const tmap = {};
+      trans.forEach((t) => (tmap[t.t.toFixed(2)] = t.text));
+      orig.forEach((l) => {
+        const key = Object.keys(tmap).find((k) => Math.abs(parseFloat(k) - l.t) < 0.05);
+        if (key) {
+          l.text = l.text + "<span class='lyric-trans'>" + C.esc(tmap[key]) + "</span>";
+          l.trans = tmap[key];
+        }
+      });
+    }
+    return orig;
+  }
+
+  function normTitle(t) {
+    return String(t || "")
+      .toLowerCase()
+      .replace(/[（(\[].*?[)）\]]/g, "")   // 去掉 (Live) (深情版) 这类后缀
+      .replace(/\s+/g, "")
+      .replace(/[^\w\u4e00-\u9fa5]/g, "");
+  }
+
+  // 换源找歌词：歌在网易云就去 QQ 找同名曲目，反之亦然
+  async function lyricsFromOtherSource(song) {
+    const isNe = song.id.indexOf("ne_") === 0;
+    const other = isNe ? "qq.php" : "netease.php";
+    const want = normTitle(song.title);
+    if (!want) return null;
+    const kw = (song.title + " " + (song.artist || "")).trim();
+    const r = await C.apiGet(other, { action: "search", keywords: kw, limit: 8 });
+    if (!r || !r.ok || !Array.isArray(r.data) || !r.data.length) return null;
+    const hit = r.data.find((x) => {
+      const n = normTitle(x.title);
+      return n === want || n.indexOf(want) === 0 || want.indexOf(n) === 0;
+    });
+    if (!hit) return null;
+    const d = await C.apiGet(other, { action: "lyric", id: String(hit.id) });
+    return parseLyricPayload(d, !isNe);
+  }
+
+  // 第三方歌词库：lrclib.net（免 key、带 CORS），主要补海外曲目
+  async function lyricsFromLrclib(song) {
+    const title = String(song.title || "").replace(/[（(].*?[)）]/g, "").trim();
+    const artist = String(song.artist || "").split(/[、,&/]/)[0].trim();
+    if (!title) return null;
+    try {
+      const qs = new URLSearchParams({ artist_name: artist, track_name: title });
+      if (song.dur) qs.set("duration", String(Math.round(song.dur)));
+      // 不要加自定义请求头：非简单头会触发 OPTIONS 预检，
+      // 对方没在 Access-Control-Allow-Headers 里放行就直接跨域失败。
+      let res = await fetch("https://lrclib.net/api/get?" + qs);
+      if (res.ok) {
+        const j = await res.json();
+        if (j && j.syncedLyrics) return j.syncedLyrics;
+      }
+      // 精确匹配不到就模糊搜一次，取第一条带时间轴的
+      res = await fetch("https://lrclib.net/api/search?" + new URLSearchParams({ q: title + " " + artist }));
+      if (!res.ok) return null;
+      const arr = await res.json();
+      const hit = (arr || []).find((x) => x.syncedLyrics);
+      return hit ? hit.syncedLyrics : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
   async function fetchLyrics(song) {
     if (!song) return;
     if (!song.external) {
@@ -354,49 +431,40 @@
       return;
     }
     const rawId = String(song.id).replace(/^(ne_|qq_|au_)/, "");
+    const isNe = song.id.indexOf("ne_") === 0;
+    const isQQ = song.id.indexOf("qq_") === 0;
+    const apply = (lines, source) => {
+      if (!lines || !lines.length) return false;
+      state.lyrics = lines;
+      state.lyricSource = source;
+      bus.emit("player:lyric", lines);
+      return true;
+    };
+
     try {
-      let data = null;
-      if (song.id.indexOf("ne_") === 0) {
-        data = await C.apiGet("netease.php", { action: "lyric", id: rawId });
-      } else if (song.id.indexOf("qq_") === 0) {
-        data = await C.apiGet("qq.php", { action: "lyric", id: rawId });
-      } else {
-        bus.emit("player:lyric", null);
-        return;
+      // 1) 先用歌曲自己的音源
+      if (isNe || isQQ) {
+        const d = isNe
+          ? await C.apiGet("netease.php", { action: "lyric", id: rawId })
+          : await C.apiGet("qq.php", { action: "lyric", id: rawId });
+        if (apply(parseLyricPayload(d, isNe), isNe ? "网易云" : "QQ音乐")) return;
       }
-      if (data && data.ok && data.lyric) {
-        let lines = null;
-        // 网易云逐字歌词（yrc）：有则用真实演唱节奏做逐字动画
-        if (song.id.indexOf("ne_") === 0 && data.yrc) {
-          lines = parseYrc(data.yrc, data.tlyric || "");
-        }
-        if (!lines) {
-          const orig = parseLrc(data.lyric);
-          const trans = parseLrc(data.tlyric || "");
-          if (trans.length) {
-            // 译文独立存 trans；l.text 仍保留 span 以兼容 fade / 抽屉
-            const tmap = {};
-            trans.forEach((t) => (tmap[t.t.toFixed(2)] = t.text));
-            orig.forEach((l) => {
-              const key = Object.keys(tmap).find((k) => Math.abs(parseFloat(k) - l.t) < 0.05);
-              if (key) {
-                l.text = l.text + "<span class='lyric-trans'>" + C.esc(tmap[key]) + "</span>";
-                l.trans = tmap[key];
-              }
-            });
-          }
-          lines = orig;
-        }
-        state.lyrics = lines;
-        bus.emit("player:lyric", lines);
-      } else {
-        state.lyrics = [];
-        bus.emit("player:lyric", null);
+      // 2) 换一个音源，按「歌名 + 歌手」找同一首
+      if (isNe || isQQ) {
+        const alt = await lyricsFromOtherSource(song);
+        if (apply(alt, isNe ? "QQ音乐" : "网易云")) return;
       }
-    } catch (e) {
-      state.lyrics = [];
-      bus.emit("player:lyric", null);
-    }
+      // 3) 第三方歌词库兜底
+      const lr = await lyricsFromLrclib(song);
+      if (lr) {
+        const lines = parseLrc(lr);
+        if (apply(lines, "LRCLIB")) return;
+      }
+    } catch (e) { /* 全部失败走下面的清空 */ }
+
+    state.lyrics = [];
+    state.lyricSource = "";
+    bus.emit("player:lyric", null);
   }
 
   function updateLyricIndex() {

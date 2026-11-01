@@ -1,10 +1,10 @@
 {
-  "version": "2.7.6",
+  "version": "2.7.7",
   "released": "2026-11-02",
-  "releaseUrl": "https://github.com/wyq1683/wyqaimusic/releases/tag/v2.7.6",
+  "releaseUrl": "https://github.com/wyq1683/wyqaimusic/releases/tag/v2.7.7",
   "highlights": [
-    "更新公告「知道了」可以正常关闭",
-    "设置页选项多的行不再把说明挤成竖排"
+    "逐字歌词按自然语速走，长间奏不再拖",
+    "歌词自动换源 + LRCLIB 兜底"
   ],
   "apk": {
     "version": "1.4",

@@ -1,10 +1,12 @@
 {
-  "version": "2.8.0",
+  "version": "2.8.1",
   "released": "2026-11-02",
-  "releaseUrl": "https://github.com/wyq1683/wyqaimusic/releases/tag/v2.8.0",
+  "releaseUrl": "https://github.com/wyq1683/wyqaimusic/releases/tag/v2.8.1",
   "highlights": [
-    "正在播放页重排：一屏装下、进度条修复",
-    "去掉重复的时长与返回键"
+    "封面共享元素转场",
+    "左右滑动切歌 / 下拉收起",
+    "删除操作 8 秒可撤销",
+    "翻页有方向"
   ],
   "apk": {
     "version": "1.4",

@@ -131,6 +131,15 @@
     }
     pageEl.classList.add("page");
 
+    // 转场方向：层级变深=前进（新页从右侧轻推入），变浅=返回（从左侧），同级=横移
+    // 不做 100vw 的抽屉式位移 —— 手机上太重，24px 就够表达"方向"
+    const depthOf = (p) => (p || "").split("/").filter(Boolean).length;
+    if (!prevPath) view.dataset.dir = "forward";
+    else {
+      const a = depthOf(path), b = depthOf(prevPath);
+      view.dataset.dir = a > b ? "forward" : (a < b ? "back" : "side");
+    }
+
     // 转场：旧页退出 → 新页进入（soft 模式静默替换并保持滚动）
     const old = $(".page", view);
     const keepScroll = view.scrollTop;
@@ -142,6 +151,11 @@
     } else {
       if (old) old.remove();
       view.appendChild(pageEl);
+    }
+    // 共享元素转场：接管目标页里标了 data-morph 的元素
+    if (global.App._morphPending) {
+      const target = pageEl.querySelector("[data-morph]");
+      if (target) target.style.viewTransitionName = target.getAttribute("data-morph");
     }
     if (soft) {
       view.scrollTop = keepScroll;
@@ -185,6 +199,71 @@
     else location.hash = path;
   }
 
+  /* ==================== 共享元素转场 ====================
+   * 把一个 DOM 元素「变成」目标页里的同名元素（目前只用于封面 → 播放页）。
+   * 三个必须做对的点：
+   *  ① 新旧两个状态各只能有一个同名元素，多一个浏览器会直接放弃整次转场
+   *  ② 转场期间要禁掉 page-in/page-exit，否则新状态截图会拍到 opacity:0 的第一帧
+   *  ③ 结束时必须清 name，否则下一次进播放页会撞重名
+   */
+  const MORPH_NAME = "song-cover";
+
+  function waitForRender() {
+    return new Promise((resolve) => {
+      let settled = false;
+      const done = () => {
+        if (settled) return;
+        settled = true;
+        // 两帧：一帧给 render 插入 DOM，一帧给样式计算完成
+        requestAnimationFrame(() => requestAnimationFrame(resolve));
+      };
+      window.addEventListener("hashchange", done, { once: true });
+      setTimeout(done, 120);   // hash 未变（同页）时的兜底，别让转场卡住
+    });
+  }
+
+  function endMorph() {
+    document.documentElement.classList.remove("vt-running");
+    global.App._morphPending = false;
+    // 按 data-morph 找，不靠 style 属性串匹配（换行/顺序都会导致匹配不到）
+    document.querySelectorAll("[data-morph]").forEach((e) => {
+      e.style.viewTransitionName = "";
+    });
+  }
+
+  function morphTo(path, fromEl) {
+    // 支持不了就退回普通导航，不能白屏或卡住
+    if (!fromEl || typeof document.startViewTransition !== "function") {
+      endMorph();
+      navigate(path);
+      return null;
+    }
+    endMorph();                      // 先清干净上一次可能残留的 name
+    fromEl.style.viewTransitionName = MORPH_NAME;
+    global.App._morphPending = true;
+    document.documentElement.classList.add("vt-running");
+
+    let vt;
+    try {
+      vt = document.startViewTransition(async () => {
+        // 旧状态已经拍过了，这里立刻摘掉源元素的 name
+        fromEl.style.viewTransitionName = "";
+        navigate(path);
+        await waitForRender();
+      });
+    } catch (e) {
+      fromEl.style.viewTransitionName = "";
+      endMorph();
+      navigate(path);
+      return null;
+    }
+    // finished 在部分 WebView / headless 里可能永远不 resolve（转场被跳过时）。
+    // 必须兜底清理，否则 vt-running 会一直挂着，把所有页面动画都禁掉。
+    const guard = setTimeout(endMorph, 1200);
+    vt.finished.catch(() => {}).finally(() => { clearTimeout(guard); endMorph(); });
+    return vt;
+  }
+
   // 应用内返回：优先回退到导航栈中的上一页；栈里没有上一页时回首页。
   // 不用 history.back()：深链进入 / 浏览器历史被清空时它会静默失败（点了没反应）。
   function back(fallback) {
@@ -217,7 +296,7 @@
   }
 
   global.App.Router = {
-    init, navigate, render, refresh, back,
+    init, navigate, render, refresh, back, morphTo,
     get current() { return current; },
   };
 })(window);

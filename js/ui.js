@@ -58,10 +58,10 @@
   }
 
   /* ==================== 歌曲卡片 / 行 ==================== */
-  function songCard(song) {
+  function songCard(song, index) {
     const playing = C.currentPlaying && C.currentPlaying.id === song.id;
     return (
-      '<div class="song-card" data-song="' + esc(song.id) + '" data-action="play-song">' +
+      '<div class="song-card" style="--i:' + Math.min(index || 0, 12) + '" data-song="' + esc(song.id) + '" data-action="play-song">' +
       (song.vip ? '<span class="card-badge">VIP</span>' : "") +
       coverHTML(song) +
       '<button class="card-play" data-action="play-song" data-song="' + esc(song.id) + '" aria-label="播放 ' + esc(song.title) + '">' +
@@ -77,7 +77,7 @@
     const playing = C.currentPlaying && C.currentPlaying.id === song.id;
     const isCur = C.currentPlaying && C.currentPlaying.id === song.id;
     return (
-      '<div class="song-row' + (isCur ? " playing" : "") + '" data-song="' + esc(song.id) + '" data-action="play-song">' +
+      '<div class="song-row' + (isCur ? " playing" : "") + '" style="--i:' + Math.min(index || 0, 12) + '" data-song="' + esc(song.id) + '" data-action="play-song">' +
       '<div class="sr-idx">' +
         '<span class="sr-num">' + (opts.index !== false ? (index + 1) : "") + "</span>" +
         (playing
@@ -103,20 +103,95 @@
 
   function cardGridHTML(songs, emptyHtml) {
     if (!songs || !songs.length) return emptyHtml || "";
-    return '<div class="card-grid stagger">' + songs.map(songCard).join("") + "</div>";
+    return '<div class="card-grid stagger">' + songs.map((s, i) => songCard(s, i)).join("") + "</div>";
   }
 
   /* ==================== Toast ==================== */
+  // 同时最多两条：连点五次「已添加」不该把播放条盖成一片。
+  // 同类同文案在 1.2 秒内合并成「已添加 ×3」，比堆三块更容易读。
+  const TOAST_MAX = 2;
+  let lastToast = null;
+
+  function toastDuration(type) {
+    return type === "error" ? 3600 : 2400;   // 错误要多留时间读
+  }
+
   function toast(msg, type) {
     const wrap = $("#toastWrap");
+    const now = Date.now();
+
+    if (lastToast && lastToast.el.isConnected && lastToast.type === (type || "") &&
+        lastToast.text === msg && now - lastToast.at < 1200) {
+      lastToast.count++;
+      lastToast.at = now;
+      const msgEl = lastToast.el.querySelector(".t-msg");
+      if (msgEl) msgEl.textContent = msg + " ×" + lastToast.count;
+      clearTimeout(lastToast.timer);
+      lastToast.timer = setTimeout(() => retire(lastToast), toastDuration(type));
+      // 轻微脉冲，表明「又加了一次」，但不要重新播入场
+      lastToast.el.classList.remove("bump");
+      void lastToast.el.offsetWidth;
+      lastToast.el.classList.add("bump");
+      return;
+    }
+
+    const alive = $$(".toast:not(.out)", wrap);
+    while (alive.length >= TOAST_MAX) { const o = alive.shift(); o.remove(); }
+
     const t = el("div", "toast " + (type || ""));
     const ic = type === "error" ? "close" : type === "success" ? "check" : "sparkle";
-    t.innerHTML = '<span class="t-ic">' + C.icon(ic, 15) + "</span><span>" + esc(msg) + "</span>";
+    t.innerHTML = '<span class="t-ic">' + C.icon(ic, 15) + '</span><span class="t-msg">' + esc(msg) + "</span>";
     wrap.appendChild(t);
-    setTimeout(() => {
-      t.classList.add("out");
-      setTimeout(() => t.remove(), 300);
-    }, 2400);
+
+    const rec = { el: t, text: msg, type: type || "", at: now, count: 1, timer: 0 };
+    rec.timer = setTimeout(() => retire(rec), toastDuration(type));
+    lastToast = rec;
+
+    function retire(r) {
+      if (!r.el.isConnected) return;
+      r.el.classList.add("out");
+      setTimeout(() => r.el.remove(), 300);
+      if (lastToast === r) lastToast = null;
+    }
+  }
+
+  /* ==================== Snackbar（带撤销的后悔药） ==================== */
+  // 规则手册 §0：破坏性操作要给撤销。8 秒窗口，同时只允许一条。
+  let activeSnack = null;
+
+  function snackbar(opts) {
+    opts = opts || {};
+    if (activeSnack) { try { activeSnack.close(); } catch (e) { /* 忽略 */ } }
+
+    const bar = el("div", "snackbar");
+    bar.setAttribute("role", "status");
+    bar.innerHTML =
+      '<span class="sn-txt">' + esc(opts.text || "") + "</span>" +
+      (opts.action ? '<button class="sn-act" type="button">' + esc(opts.action) + "</button>" : "");
+    document.body.appendChild(bar);
+    document.body.classList.add("has-snack");
+    void bar.offsetWidth;      // 先让初始态成立，否则 transform 过渡会被合并掉
+    bar.classList.add("in");
+
+    let done = false;
+    const close = (runAction) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      bar.classList.remove("in");
+      document.body.classList.remove("has-snack");
+      setTimeout(() => bar.remove(), 220);
+      if (activeSnack === api) activeSnack = null;
+      if (runAction && typeof opts.onAction === "function") opts.onAction();
+    };
+    const timer = setTimeout(() => close(false), opts.duration || 8000);
+
+    const act = bar.querySelector(".sn-act");
+    if (act) act.addEventListener("click", () => close(true));
+
+    const api = { close: () => close(false) };
+    activeSnack = api;
+    return api;
   }
 
   /* ==================== 模态 ==================== */
@@ -675,7 +750,10 @@
       toast(fav ? "已加入收藏" : "已取消收藏", "success");
       refreshCurrentView();
     });
-    $("#pbCover").addEventListener("click", () => { location.hash = "#/now-playing"; });
+    $("#pbCover").addEventListener("click", () => {
+      // 封面从小方块「长成」播放页大封面，比整页淡入更有因果感
+      global.App.Router.morphTo("/now-playing", $("#pbCoverImg"));
+    });
     $("#btnQueue").addEventListener("click", () => toggleDrawer("queue"));
     $("#btnLyric").addEventListener("click", () => toggleDrawer("lyric"));
     $("#btnMore").addEventListener("click", (e) => {
@@ -721,8 +799,7 @@
     });
     bus.on("player:state", (playing) => {
       const bp = $("#btnPlay");
-      C.showIcon(bp.querySelector(".ic-play"), !playing);
-      C.showIcon(bp.querySelector(".ic-pause"), playing);
+      C.paintPlayIcon(bp, playing);
       $("#btnPlay").classList.toggle("playing", playing);
       $("#btnPlay").setAttribute("aria-label", playing ? "暂停" : "播放");
     });
@@ -980,8 +1057,20 @@
     pane.innerHTML = html;
     const clear = $("#qClear", pane);
     if (clear) clear.addEventListener("click", () => {
+      // 破坏性操作要给后悔药（规则手册 §0）：快照整个队列，8 秒内可还原。
+      const snap = { q: q.slice(), idx: P.state.index };
       global.App.Player.setQueue([], -1);
       renderQueuePane();
+      snackbar({
+        text: "已清空队列（" + snap.q.length + " 首）",
+        action: "撤销",
+        duration: 8000,
+        onAction: () => {
+          global.App.Player.setQueue(snap.q, snap.idx);
+          renderQueuePane();
+          toast("已恢复 " + snap.q.length + " 首", "success");
+        },
+      });
     });
     $$(".q-item", pane).forEach((item) =>
       item.addEventListener("click", (e) => {
@@ -993,10 +1082,21 @@
       b.addEventListener("click", (e) => {
         e.stopPropagation();
         const i = parseInt(b.dataset.qrm, 10);
-        const qq = global.App.Player.queueList();
+        const snap = { q: global.App.Player.queueList(), idx: global.App.Player.state.index };
+        const gone = snap.q[i] ? D.get(snap.q[i]) : null;
+        const qq = snap.q.slice();
         qq.splice(i, 1);
-        global.App.Player.setQueue(qq, i < global.App.Player.state.index ? global.App.Player.state.index - 1 : global.App.Player.state.index);
+        global.App.Player.setQueue(qq, i < snap.idx ? snap.idx - 1 : snap.idx);
         renderQueuePane();
+        snackbar({
+          text: "已移除「" + (gone ? gone.title : "歌曲") + "」",
+          action: "撤销",
+          duration: 8000,
+          onAction: () => {
+            global.App.Player.setQueue(snap.q, snap.idx);
+            renderQueuePane();
+          },
+        });
       })
     );
   }
@@ -1495,7 +1595,7 @@
     init,
     coverStyle, coverHTML, smallCover,
     sectionHead, emptyState, songCard, songRow, songListHTML, cardGridHTML,
-    toast, modal, closeModal, confirmDialog, contextMenu, closeMenu,
+    toast, snackbar, modal, closeModal, confirmDialog, contextMenu, closeMenu,
     openPalette, openAuthModal, openPlaylistPicker, openShareModal, openSongInfo, songActions,
     renderNav, renderSidebarPlaylists, renderUser, refreshCurrentView, updateSocialBadge,
     toggleDrawer, renderDrawer,

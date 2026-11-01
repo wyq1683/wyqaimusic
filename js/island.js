@@ -116,7 +116,9 @@
       if (!expanded) return;
       e.stopPropagation();
       setExpanded(false);
-      if (R()) R().navigate("/now-playing");
+      const art = root && root.querySelector(".isl-art");
+      if (R() && R().morphTo) R().morphTo("/now-playing", art);
+      else if (R()) R().navigate("/now-playing");
     });
 
     // 点外面收起

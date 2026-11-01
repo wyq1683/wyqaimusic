@@ -145,6 +145,8 @@
 
   function next(auto) {
     if (!state.queue.length) return;
+    // 记方向，播放页据此让新封面从对的一侧进来（消费后清空）
+    state.dir = "next";
     if (state.shuffle) {
       let i;
       do { i = Math.floor(Math.random() * state.queue.length); }
@@ -160,7 +162,9 @@
 
   function prev() {
     if (!state.queue.length) return;
+    // 「回到本曲开头」不是切歌，不该有换曲动画
     if (audio.currentTime > 3) { audio.currentTime = 0; return; }
+    state.dir = "prev";
     if (state.index > 0) playAt(state.index - 1);
     else if (state.repeat === "all") playAt(state.queue.length - 1);
     else audio.currentTime = 0;

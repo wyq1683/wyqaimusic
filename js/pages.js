@@ -607,9 +607,20 @@
         UI().contextMenu(
           [
             { icon: "close", label: "从歌单移除", danger: true, onClick: () => {
+                const at = pl.songIds.indexOf(song.id);
                 C.removeFromPlaylist(pl.id, song.id);
-                UI().toast("已移除");
                 global.App.Router.refresh();
+                // 删歌单里的歌是用户最容易手滑的操作之一，给 8 秒后悔药
+                UI().snackbar({
+                  text: "已从「" + pl.name + "」移除「" + song.title + "」",
+                  action: "撤销",
+                  duration: 8000,
+                  onAction: () => {
+                    C.insertIntoPlaylist(pl.id, song.id, at);
+                    global.App.Router.refresh();
+                    UI().toast("已恢复", "success");
+                  },
+                });
               } },
             { sep: true },
             { icon: "play", label: "立即播放", onClick: () => P().playList([song.id], 0) },
@@ -1306,7 +1317,7 @@
       '<div class="np-immerse" id="npImmerse"></div>' +
       '<button class="np-mode-exit" id="npModeExit" type="button" hidden>' + C.icon("close", 13) + " 退出</button>" +
       '<div class="np-cover-wrap">' +
-      '<div class="np-cover spinning" id="npCover" style="background:linear-gradient(150deg,' + npSong.c.from + "," + npSong.c.to + ')">' +
+      '<div class="np-cover spinning" id="npCover" data-morph="song-cover" style="background:linear-gradient(150deg,' + npSong.c.from + "," + npSong.c.to + ')">' +
       (npSong.coverUrl
         // 封面加载失败时要退回渐变/emoji，不能让 alt 文本把整块封面填满
         ? '<img src="' + C.esc(npSong.coverUrl) + '" alt="" onerror="this.style.display=\'none\'" />'
@@ -1326,8 +1337,7 @@
       '<div class="np-controls">' +
       '<button class="icon-btn" id="npPrev" type="button" aria-label="上一首" title="上一首"><svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg></button>' +
       '<button class="play-btn" id="npPlay" type="button" aria-label="播放或暂停" title="播放/暂停">' +
-      '<svg class="ic-play" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>' +
-      '<svg class="ic-pause" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" hidden><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>' +
+      '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>' +
       "</button>" +
       '<button class="icon-btn" id="npNext" type="button" aria-label="下一首" title="下一首"><svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6h2v12h-2z"/></svg></button>' +
       "</div>" +
@@ -1513,8 +1523,7 @@
     npSeek.addEventListener("pointerup", npSeekCommit);
     const onNpState = (playing) => {
       const b = $("#npPlay", el);
-      C.showIcon(b.querySelector(".ic-play"), !playing);
-      C.showIcon(b.querySelector(".ic-pause"), playing);
+      C.paintPlayIcon(b, playing);
       b.classList.toggle("playing", playing);
       b.setAttribute("aria-label", playing ? "暂停" : "播放");
     };
@@ -1723,8 +1732,123 @@
     };
     bus.on("player:covercolor", onCoverColor);
 
-    const onSongChanged = (s) => { if (s) updateSongInfo(s); };
+    const onSongChanged = (s) => {
+      if (!s) return;
+      const dir = P().state.dir;
+      updateSongInfo(s);
+      if (dir) {
+        P().state.dir = "";
+        // 只让封面从对的一侧进来；旧封面不淡出，否则两张图叠着会发灰
+        const wrap = el.querySelector(".np-cover-wrap");
+        if (wrap) {
+          wrap.classList.remove("song-next", "song-prev");
+          void wrap.offsetWidth;
+          wrap.classList.add(dir === "prev" ? "song-prev" : "song-next");
+        }
+      }
+    };
     bus.on("player:changed", onSongChanged);
+
+    /* ---------------- 封面手势：横向切歌 / 下拖收起 ----------------
+     * 只在封面区域响应（用户明确要求），避免和歌词区滚动抢手势。
+     * 判定阈值：|dx| > |dy| * 1.4 才算横向，否则让位给其它手势。 */
+    (function wireCoverGestures() {
+      const coverEl = $("#npCover", el);
+      const wrapEl = el.querySelector(".np-cover-wrap");
+      const pageEl = el.querySelector(".np-page");
+      if (!coverEl || !wrapEl || !pageEl) return;
+
+      let active = false, axis = null, sx = 0, sy = 0, lastDx = 0, lastDy = 0, pid = null;
+
+      const resetCover = (animate) => {
+        wrapEl.style.transition = animate
+          ? "transform 320ms cubic-bezier(.22,1.15,.36,1), opacity 220ms ease" : "";
+        wrapEl.style.transform = "";
+        wrapEl.style.opacity = "";
+        if (animate) setTimeout(() => { wrapEl.style.transition = ""; }, 340);
+      };
+      const resetPage = (animate) => {
+        pageEl.style.transition = animate ? "transform 280ms var(--ease-spring), opacity 220ms ease" : "";
+        pageEl.style.transform = "";
+        pageEl.style.opacity = "";
+        if (animate) setTimeout(() => { pageEl.style.transition = ""; }, 320);
+      };
+
+      coverEl.addEventListener("pointerdown", (e) => {
+        if (e.pointerType === "mouse" && e.button !== 0) return;
+        active = true; axis = null; lastDx = 0; lastDy = 0;
+        sx = e.clientX; sy = e.clientY; pid = e.pointerId;
+        // 入场动画（rise-in）会盖住 inline transform，先停掉
+        wrapEl.style.animation = "none";
+        wrapEl.classList.add("dragging");
+      });
+
+      coverEl.addEventListener("pointermove", (e) => {
+        if (!active) return;
+        const dx = e.clientX - sx, dy = e.clientY - sy;
+
+        if (!axis) {
+          if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+          if (Math.abs(dx) > Math.abs(dy) * 1.4) axis = "x";
+          else if (dy > 0 && Math.abs(dy) > Math.abs(dx) * 1.2) axis = "y";
+          else { active = false; return; }      // 上滑/斜滑：不接管
+          try { coverEl.setPointerCapture(pid); } catch (err) { /* 忽略 */ }
+          wrapEl.style.transition = "none";
+          pageEl.style.transition = "none";
+        }
+
+        if (axis === "x") {
+          lastDx = dx;
+          wrapEl.style.transform = "translateX(" + dx + "px) rotate(" + (dx / 60) + "deg)";
+          wrapEl.style.opacity = String(Math.max(0.4, 1 - Math.abs(dx) / 380));
+        } else if (axis === "y") {
+          lastDy = dy;
+          const k = Math.min(dy / 520, 1);
+          pageEl.style.transform = "translateY(" + (dy * 0.55) + "px) scale(" + (1 - k * 0.12) + ")";
+          pageEl.style.borderRadius = Math.round(k * 28) + "px";
+        }
+      });
+
+      const finish = (ok) => {
+        if (!active) return;
+        active = false;
+        wrapEl.classList.remove("dragging");
+        const axisNow = axis;
+        axis = null;
+        if (axisNow === "x") {
+          const w = coverEl.offsetWidth || 220;
+          if (ok && Math.abs(lastDx) > w * 0.3) {
+            const dir = lastDx > 0 ? 1 : -1;
+            wrapEl.style.transition = "transform 260ms cubic-bezier(.22,1,.36,1), opacity 260ms ease";
+            wrapEl.style.transform = "translateX(" + (dir * (w + 80)) + "px) rotate(" + (dir * 14) + "deg)";
+            wrapEl.style.opacity = "0";
+            setTimeout(() => {
+              wrapEl.style.transition = "";
+              wrapEl.style.transform = "";
+              wrapEl.style.opacity = "";
+              wrapEl.style.animation = "";   // 交还给 song-next / song-prev
+              if (dir > 0) P().prev(); else P().next(false);
+            }, 200);
+          } else {
+            resetCover(true);
+            wrapEl.style.animation = "";
+          }
+        } else if (axisNow === "y") {
+          if (ok && lastDy > 140) {
+            pageEl.style.transition = "transform 240ms ease, opacity 240ms ease";
+            pageEl.style.transform = "translateY(" + (lastDy + 80) + "px) scale(.9)";
+            pageEl.style.opacity = "0";
+            setTimeout(() => { resetPage(false); global.App.Router.back(); }, 200);
+          } else {
+            resetPage(true);
+            wrapEl.style.animation = "";
+          }
+        }
+      };
+
+      coverEl.addEventListener("pointerup", () => finish(true));
+      coverEl.addEventListener("pointercancel", () => finish(false));
+    })();
     // 初次进入播放页：已取得该曲颜色则直接补渲染，否则触发一次取色
     if (npSong && npSong.themeColor) {
       onCoverColor({ accent: npSong.themeColor, from: (npSong._coverGrad && npSong._coverGrad.from) || npSong.themeColor, to: (npSong._coverGrad && npSong._coverGrad.to) || npSong.themeColor, coverUrl: npSong.coverUrl });

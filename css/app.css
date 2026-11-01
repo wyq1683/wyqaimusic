@@ -519,18 +519,13 @@ body.sb-mini .sb-nav .nav-item { justify-content: center; }
   to { opacity: 0; transform: translateY(-10px) scale(0.99); }
 }
 
-/* 列表交错入场 */
+/* 列表交错入场
+   原来按 :nth-child 硬编码到第 8 项，第 9 项之后延迟全是 0（等于白跑一次动画）。
+   改成读 --i，整屏（12 项）最多延迟 336ms，不拖沓也不掉帧。 */
 .stagger > * {
   animation: rise-in var(--dur-3) var(--ease-out) backwards;
+  animation-delay: calc(var(--i, 0) * 28ms);
 }
-.stagger > *:nth-child(1) { animation-delay: 0.02s; }
-.stagger > *:nth-child(2) { animation-delay: 0.05s; }
-.stagger > *:nth-child(3) { animation-delay: 0.08s; }
-.stagger > *:nth-child(4) { animation-delay: 0.11s; }
-.stagger > *:nth-child(5) { animation-delay: 0.14s; }
-.stagger > *:nth-child(6) { animation-delay: 0.17s; }
-.stagger > *:nth-child(7) { animation-delay: 0.2s; }
-.stagger > *:nth-child(8) { animation-delay: 0.23s; }
 
 /* ==================== 5. 底部播放条 ==================== */
 .player-bar {
@@ -3069,3 +3064,170 @@ button.sb-link {
     padding: 28px 6px;
   }
 }
+
+/* ==================== 15. 共享元素转场（封面 → 播放页） ====================
+   规则：
+   ① 只有封面参与 morph，页面其余部分直接切换（否则整页交叉淡化会糊成灰）
+   ② 圆角跟着尺寸一起变，只放大不改圆角看着像 P 的
+   ③ 转场期间禁掉页内动画，否则新状态截图拍到 opacity:0 的第一帧 */
+::view-transition-group(song-cover) {
+  animation-duration: 460ms;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+::view-transition-old(song-cover),
+::view-transition-new(song-cover) {
+  animation-duration: 460ms;
+  height: 100%;
+}
+::view-transition-image-pair(song-cover) {
+  border-radius: 22px;
+  overflow: hidden;
+  animation: vt-radius 460ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes vt-radius {
+  from { border-radius: 10px; }
+  to { border-radius: 22px; }
+}
+
+/* 旧页直接让位，新页 220ms 淡入 —— 和封面飞行同时发生，不像"闪一下" */
+::view-transition-old(root) { animation: none; opacity: 0; }
+::view-transition-new(root) { animation: vt-page-in 220ms ease-out both; }
+@keyframes vt-page-in { from { opacity: 0; } to { opacity: 1; } }
+
+html.vt-running .page { animation: none !important; }
+html.vt-running .np-cover.spinning { animation: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) { animation-duration: 0.01ms !important; }
+}
+
+/* ==================== 16. 播放键图标 ====================
+   单个 svg 换 path（不再两个图标交叉 opacity）。
+   缩放脉冲由 JS 的 Web Animations 驱动，这里只保证 transform 圆心正确。 */
+.play-btn svg { transform-origin: center; }
+
+/* ==================== 17. Snackbar（带撤销） ====================
+   与 Toast 分工：Toast 是一闪而过的通知，Snackbar 是"刚才那步可以撤回"。
+   位置放在播放条之上，8 秒后自动消失。 */
+.snackbar {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--player-h) + 18px);
+  transform: translateX(-50%) translateY(14px);
+  opacity: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 9px 9px 18px;
+  border-radius: var(--r-full);
+  background: var(--glass-bg-strong);
+  border: 1px solid var(--hairline-strong);
+  box-shadow: var(--shadow-2);
+  backdrop-filter: blur(22px) saturate(1.4);
+  -webkit-backdrop-filter: blur(22px) saturate(1.4);
+  z-index: 210;
+  max-width: min(460px, calc(100vw - 24px));
+  pointer-events: none;
+  transition: opacity 220ms ease, transform 300ms var(--ease-spring);
+}
+.snackbar.in { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
+.sn-txt {
+  font-size: 0.84rem;
+  color: var(--text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sn-act {
+  flex: none;
+  border: 0;
+  background: transparent;
+  color: var(--accent-text);
+  font-size: 0.84rem;
+  font-weight: 600;
+  padding: 7px 12px;
+  border-radius: var(--r-full);
+  cursor: pointer;
+  transition: background var(--dur-1) ease;
+}
+.sn-act:hover { background: var(--glass-card-hover); }
+.sn-act:active { transform: scale(0.96); }
+
+@media (max-width: 900px) {
+  .snackbar { bottom: calc(var(--player-h) + var(--tabbar-h) + var(--safe-b) + 12px); }
+}
+/* Snackbar 出现时把 Toast 抬高，避免两层发后悔药叠在一起 */
+body.has-snack .toast-wrap { bottom: calc(var(--player-h) + 74px); }
+@media (max-width: 900px) {
+  body.has-snack .toast-wrap { bottom: calc(var(--player-h) + var(--tabbar-h) + var(--safe-b) + 68px); }
+}
+
+/* Toast 合并计数时的轻微脉冲（不重播入场，只提示"又来一条"） */
+.toast.bump { animation: toast-bump 260ms var(--ease-spring); }
+@keyframes toast-bump {
+  0% { transform: scale(1); }
+  45% { transform: scale(1.035); }
+  100% { transform: scale(1); }
+}
+
+/* 播放页把播放条和 tabbar 都隐藏了，Toast/Snackbar 不能再按它们的高度定位，
+   否则会悬在屏幕中间（实测在 844 高的屏幕上飘到 620px 处）。 */
+body[data-np="1"] .toast-wrap { bottom: calc(30px + var(--safe-b)); }
+body[data-np="1"] .snackbar { bottom: calc(22px + var(--safe-b)); }
+body[data-np="1"].has-snack .toast-wrap { bottom: calc(86px + var(--safe-b)); }
+
+
+/* ==================== 18. 方向性转场 ====================
+   切歌与翻页都用"从哪边来"表达因果，而不是所有动作都从下方浮起。 */
+.np-cover-wrap.song-next { animation: cover-in-right 380ms var(--ease-out); }
+.np-cover-wrap.song-prev { animation: cover-in-left 380ms var(--ease-out); }
+@keyframes cover-in-right {
+  from { opacity: 0; transform: translateX(46px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes cover-in-left {
+  from { opacity: 0; transform: translateX(-46px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+
+/* 只覆盖 animation-name，保留 .page 上的时长与缓动 */
+.view[data-dir="forward"] .page { animation-name: page-in-right; }
+.view[data-dir="back"] .page { animation-name: page-in-left; }
+.view[data-dir="side"] .page { animation-name: page-in-side; }
+@keyframes page-in-right {
+  from { opacity: 0; transform: translateX(26px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes page-in-left {
+  from { opacity: 0; transform: translateX(-26px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes page-in-side {
+  from { opacity: 0; transform: translateY(12px) scale(0.99); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ==================== 19. 手势与进度条 ==================== */
+/* 封面：接管横滑与下拖。播放页本身不滚动，touch-action:none 不会影响其它区域 */
+.np-cover {
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: grab;
+}
+.np-cover:active { cursor: grabbing; }
+/* 拖动时停掉"呼吸"，否则位移和 scale 叠在一起会晃 */
+.np-cover-wrap.dragging .np-cover { animation: none; }
+.np-cover-wrap.dragging { animation: none !important; }
+
+/* 进度条：按下时轨道变粗、拖点放大 —— 2px 的轨道手指压不准，
+   放大是"我能控制"的反馈，比加个 tooltip 直接。 */
+.pb-seek::before { transition: height 200ms var(--ease-out); }
+.pb-seek:active::before { height: 6px; }
+.pb-seek-fill { transition: width 0.12s linear, height 200ms var(--ease-out); }
+.pb-seek:active .pb-seek-fill { height: 6px; }
+.pb-seek-knob { transition: transform 200ms var(--ease-spring), opacity 160ms ease; }
+/* 移动端没有 hover，拖点平时是 scale(0)；按下时给到 1.45，才有"抓得住"的手感 */
+.pb-seek:active .pb-seek-knob { transform: translateX(-50%) scale(1.45); }

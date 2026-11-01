@@ -72,6 +72,33 @@
     else svgEl.setAttribute("hidden", "");
   }
 
+  // 播放/暂停图标：同一个 svg，换 path 的 d 属性。
+  // 试过两个 svg 交叉 opacity，但在 View Transition 之后元素的 opacity 计算值
+  // 会被合成层的旧快照拖住（inline 写 1、computed 仍是 0），不可靠。
+  // 换 path 没有样式竞争；切换瞬间缩到 0.78 再弹回，视觉上是"按下去换了一个"。
+  const D_PLAY = "M8 5v14l11-7z";
+  const D_PAUSE = "M7 5h3.4v14H7zm6.6 0H17v14h-3.4z";
+
+  function paintPlayIcon(btn, playing) {
+    if (!btn) return;
+    const svg = btn.querySelector("svg");
+    const path = svg && svg.querySelector("path");
+    const d = playing ? D_PAUSE : D_PLAY;
+    btn.classList.toggle("is-playing", !!playing);
+    btn.setAttribute("aria-label", playing ? "暂停" : "播放");
+    if (!path) return;
+    if (path.getAttribute("d") === d) return;   // 状态没变，别重播动画
+    if (svg.animate) {
+      svg.animate(
+        [{ transform: "scale(1)" }, { transform: "scale(0.78)" }, { transform: "scale(1)" }],
+        { duration: 260, easing: "cubic-bezier(0.22, 1.36, 0.36, 1)" }
+      );
+      setTimeout(() => path.setAttribute("d", d), 110);
+    } else {
+      path.setAttribute("d", d);
+    }
+  }
+
   // 把某一行滚到滚动容器的视觉中心。
   // 不能用 line.offsetTop：offsetParent 往往是更外层的定位元素（或 body），
   // 量到的是相对整页的偏移，再减 clientHeight/2 会滚过头，高亮行被顶出可视区。
@@ -130,7 +157,7 @@
 
   // 单一版本号来源：侧栏、设置页、更新公告都读它。
   // 每次发版改这里 + index.html 的缓存戳。
-  const VERSION = "2.8.0";
+  const VERSION = "2.8.1";
 
   function read(key, fallback) {
     try {
@@ -587,6 +614,23 @@
     bus.emit("data:changed");
     return true;
   }
+  // 插到指定位置。addToPlaylist 是 unshift（插到开头），撤销删除时位置会跑到第一位，
+  // 这个才是"还原到原来那一格"。
+  function insertIntoPlaylist(plId, songId, at) {
+    const u = currentUser(); if (!u) return false;
+    const d = getUserData(u);
+    const pl = d.playlists.find((p) => p.id === plId);
+    if (!pl) return false;
+    const i = pl.songIds.indexOf(songId);
+    if (i >= 0) pl.songIds.splice(i, 1);
+    const pos = Math.max(0, Math.min(at >= 0 ? at : pl.songIds.length, pl.songIds.length));
+    pl.songIds.splice(pos, 0, songId);
+    saveUserData(u, d);
+    syncNow();
+    bus.emit("data:changed");
+    return true;
+  }
+
   function removeFromPlaylist(plId, songId) {
     const u = currentUser(); if (!u) return;
     const d = getUserData(u);
@@ -942,7 +986,7 @@
   global.App = global.App || {};
   global.App.Core = {
     VERSION,
-    $, $$, el, fmtDur, fmtTime, fmtNum, esc, debounce, icon, showIcon, centerInScroll, gradientFor, applyBgPreset, BG_GRADIENTS, compressImage,
+    $, $$, el, fmtDur, fmtTime, fmtNum, esc, debounce, icon, showIcon, paintPlayIcon, centerInScroll, gradientFor, applyBgPreset, BG_GRADIENTS, compressImage,
     bus, read, write,
     K, PREFIX,
     getToken, setToken, useApi, api, apiGet,
@@ -952,7 +996,7 @@
     addHistory, toggleFavorite, addFavorites, isFavorite, getFavorites,
     createPlaylist, importPlaylist, renamePlaylist, deletePlaylist, addToPlaylist,
     removeFromPlaylist, getPlaylists, getPlaylist,
-    mergePlaylistSongs, dedupePlaylist, uniqIds, touchPlaylistSource,
+    mergePlaylistSongs, dedupePlaylist, uniqIds, touchPlaylistSource, insertIntoPlaylist,
     getPlays, bumpPlays,
     social,
     getSearchHistory, addSearchHistory, clearSearchHistory,

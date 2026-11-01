@@ -83,8 +83,16 @@
   /* ==================== 外部歌曲注册表 ==================== */
   const EXTERNAL = {};
   const K_EXTERNAL = C.K.EXTERNAL;
-  const EXTERNAL_CAP = 500;
+  // 原来卡在 500：导入 995 首的歌单，超过上限就从最早的一批开始删，
+  // 结果是「导入后能播（内存里都在），一刷新前一半全没了」。
+  // 真正的约束应该是 localStorage 配额，不是条数 —— 所以上限放到足够大，
+  // 真写不下时按配额回退（见 flushExternal）。
+  const EXTERNAL_CAP = 20000;
   let restoringExternal = false;
+
+  // 存盘只存 API 原始对象（restore 时还要重新注册，存派生对象会二次加前缀）。
+  const RAW = {};
+  let flushTimer = 0;
 
   function readExternalMap() {
     try {
@@ -93,17 +101,31 @@
     } catch (e) { return {}; }
   }
 
-  function persistExternal(rawSong) {
+  // 全量落盘。批量导入时只在最后调一次，不要每首歌都序列化一遍整个 map。
+  function flushExternal() {
+    flushTimer = 0;
+    const map = readExternalMap();
+    Object.keys(RAW).forEach((k) => { map[k] = RAW[k]; });
+    let keys = Object.keys(map);
+    if (keys.length > EXTERNAL_CAP) {
+      keys.slice(0, keys.length - EXTERNAL_CAP).forEach((k) => delete map[k]);
+      keys = Object.keys(map);
+    }
     try {
-      const map = readExternalMap();
-      const prefix = rawSong.source === "netease" ? "ne_" : (rawSong.source === "qq" ? "qq_" : "au_");
-      map[prefix + rawSong.id] = rawSong;
-      const keys = Object.keys(map);
-      if (keys.length > EXTERNAL_CAP) {
-        keys.slice(0, keys.length - EXTERNAL_CAP).forEach((k) => delete map[k]);
-      }
       localStorage.setItem(K_EXTERNAL, JSON.stringify(map));
-    } catch (e) { /* 忽略配额错误 */ }
+    } catch (e) {
+      // 配额满了：丢掉最早的四分之一再试，别让整次导入无声失败
+      const drop = Math.max(50, Math.floor(keys.length * 0.25));
+      keys.slice(0, drop).forEach((k) => delete map[k]);
+      try { localStorage.setItem(K_EXTERNAL, JSON.stringify(map)); } catch (e2) { /* 放弃 */ }
+    }
+  }
+
+  function persistExternal(rawSong) {
+    const prefix = rawSong.source === "netease" ? "ne_" : (rawSong.source === "qq" ? "qq_" : "au_");
+    RAW[prefix + rawSong.id] = rawSong;
+    // 单首注册（点开详情、搜索命中）时合并写入，避免连续写盘
+    if (!flushTimer) flushTimer = setTimeout(flushExternal, 200);
   }
 
   function registerExternal(song) {
@@ -146,16 +168,16 @@
   function registerMany(songs) {
     restoringExternal = true;
     const out = [];
-    (songs || []).forEach((song) => { const f = registerExternal(song); if (f) out.push(f); });
+    (songs || []).forEach((song) => {
+      if (!song || !song.id) return;
+      const full = registerExternal(song);
+      if (!full) return;
+      const prefix = song.source === "netease" ? "ne_" : (song.source === "qq" ? "qq_" : "au_");
+      RAW[prefix + song.id] = song;
+      out.push(full);
+    });
     restoringExternal = false;
-    try {
-      const map = readExternalMap();
-      const keys = Object.keys(map);
-      if (keys.length > EXTERNAL_CAP) {
-        keys.slice(0, keys.length - EXTERNAL_CAP).forEach((k) => delete map[k]);
-      }
-      localStorage.setItem(K_EXTERNAL, JSON.stringify(map));
-    } catch (e) { /* 忽略配额错误 */ }
+    flushExternal();
     return out;
   }
 
@@ -182,6 +204,7 @@
       try {
         const existing = readExternalMap();
         const merged = Object.assign({}, existing, map);
+        Object.keys(map).forEach((k) => { if (map[k]) RAW[k] = map[k]; });
         const keys = Object.keys(merged);
         if (keys.length > EXTERNAL_CAP) keys.slice(0, keys.length - EXTERNAL_CAP).forEach((k) => delete merged[k]);
         localStorage.setItem(K_EXTERNAL, JSON.stringify(merged));

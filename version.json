@@ -1,10 +1,11 @@
 {
-  "version": "2.7.3",
+  "version": "2.7.4",
   "released": "2026-11-02",
-  "releaseUrl": "https://github.com/wyq1683/wyqaimusic/releases/tag/v2.7.3",
+  "releaseUrl": "https://github.com/wyq1683/wyqaimusic/releases/tag/v2.7.4",
   "highlights": [
-    "点歌即播整张歌单，队列顺序对了",
-    "返回页面恢复滚动位置，并自动定位到正在播放的那首"
+    "大歌单导入不再丢歌",
+    "同名歌单自动合并、重复自动去掉",
+    "列表与详情数量一致"
   ],
   "apk": {
     "version": "1.4",

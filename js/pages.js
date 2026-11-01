@@ -349,7 +349,7 @@
           '<a class="pl-card" href="#/playlist/' + C.esc(p.id) + '">' +
           UI().coverHTML({ c: gradientFrom(p.name), emoji: "🎵" }) +
           '<div class="card-title ellipsis" style="margin-top:9px">' + C.esc(p.name) + "</div>" +
-          '<div class="card-sub">' + p.songIds.length + " 首</div></a>";
+          '<div class="card-sub">' + playlistCountText(p) + "</div></a>";
       });
       html += "</div>";
     }
@@ -361,6 +361,16 @@
     const lb = $("#plLogin", el);
     if (lb) lb.addEventListener("click", () => UI().openAuthModal("login"));
     return el;
+  }
+
+  // 卡片上的「N 首」要跟点进去看到的一致：只数能解析出歌曲信息的。
+  // 早期版本导入时的歌曲信息可能没存下来，那种要单独标出来，不能假装还在。
+  function playlistCountText(p) {
+    const total = p.songIds.length;
+    let ok = 0;
+    p.songIds.forEach((id) => { if (D.get(id)) ok++; });
+    if (ok === total) return total + " 首";
+    return ok + " / " + total + " 首可用";
   }
 
   function gradientFrom(name) {
@@ -425,15 +435,29 @@
         UI().toast(data.error || "歌单导入失败（可能为私密歌单）", "error");
         return;
       }
-      // 统一注册为外部歌曲（netease 的播放地址由 registerExternal 内部回退拼装）
-      const songIds = data.data
-        .map((t) => { const full = D.registerExternal(t); return full ? full.id : null; })
-        .filter(Boolean);
+      // 同一首可能在上游出现多次（多碟专辑），先去重再注册
+      const seen = Object.create(null);
+      const raws = [];
+      data.data.forEach((t) => {
+        if (!t || !t.id || seen[String(t.id)]) return;
+        seen[String(t.id)] = 1;
+        raws.push(t);
+      });
+      // 批量注册：一次落盘。早期是逐首 registerExternal，
+      // 995 首就是 995 次全量 JSON 序列化，还会撞上注册表上限把前面的歌挤掉。
+      const fulls = D.registerMany(raws);
+      const songIds = fulls.map((f) => f.id);
       if (!songIds.length) { UI().toast("歌单中没有可导入的歌曲", "error"); return; }
 
       const name = (data.name || (isQQ ? "QQ音乐歌单" : "网易云歌单")).trim() || "导入的歌单";
-      C.importPlaylist(name, songIds);
-      UI().toast("已导入 " + songIds.length + " 首歌曲到「" + name + "」✅", "success");
+      const same = C.getPlaylists().find((p) => p.name === name);
+      if (same) {
+        const added = C.mergePlaylistSongs(same.id, songIds);
+        UI().toast(added > 0 ? "已合并 " + added + " 首到「" + name + "」" : "「" + name + "」已是最新，没有新歌", "success");
+      } else {
+        C.importPlaylist(name, songIds);
+        UI().toast("已导入 " + songIds.length + " 首歌曲到「" + name + "」✅", "success");
+      }
       // 同 hash 赋值不会触发 hashchange：已在歌单页时软刷新，否则跳转
       if (location.hash === "#/playlists") global.App.Router.refresh();
       else location.hash = "#/playlists";
@@ -449,21 +473,35 @@
       return page(UI().emptyState("playlist", "歌单不存在或已删除", "", '<a class="btn btn-primary" href="#/playlists">返回歌单列表</a>'));
     }
     const songs = pl.songIds.map((id) => D.get(id)).filter(Boolean);
+    const missing = pl.songIds.length - songs.length;
+    const dupes = pl.songIds.length - C.uniqIds(pl.songIds).length;
     let html =
       '<div class="page-head">' +
       '<div class="ph-cover" style="background:linear-gradient(150deg,' + gradientFrom(pl.name).from + "," + gradientFrom(pl.name).to + ')">' + C.icon("playlist", 40) + "</div>" +
       '<div class="ph-info"><div class="ph-kicker">播放列表</div>' +
       '<div class="ph-title">' + C.esc(pl.name) + "</div>" +
-      '<div class="ph-meta"><span>' + songs.length + " 首</span></div>" +
+      '<div class="ph-meta"><span>' + songs.length + " 首</span>" +
+      (missing > 0 ? '<span style="color:#e8b463"> · ' + missing + " 首信息缺失</span>" : "") +
+      "</div>" +
       '<div class="ph-actions">' +
       '<button class="btn btn-primary" id="pdPlay">' + C.icon("play", 14) + " 播放全部</button>" +
       '<button class="btn btn-ghost" id="pdShuffle">' + C.icon("shuffle", 14) + " 随机</button>" +
+      (dupes > 0 ? '<button class="btn btn-ghost" id="pdDedupe">' + C.icon("check", 14) + " 去掉 " + dupes + " 首重复</button>" : "") +
       '<button class="btn btn-ghost" id="pdRename">' + C.icon("edit", 14) + " 重命名</button>" +
       '<button class="btn btn-danger" id="pdDelete">' + C.icon("trash", 14) + " 删除</button>" +
       "</div></div></div>";
-    html += songs.length ? UI().songListHTML(songs) : UI().emptyState("music", "歌单还是空的", "在歌曲菜单里选择「添加到歌单」", '<a class="btn btn-ghost" href="#/library">去曲库添加</a>');
+    const missNote = missing > 0
+      ? '<div class="src-note">有 ' + missing + ' 首歌曲信息已丢失（早期版本导入时未完整保存）。重新导入同一个歌单即可恢复——会自动合并进这个歌单，不会再多出一条。</div>'
+      : "";
+    html += missNote + (songs.length ? UI().songListHTML(songs) : UI().emptyState("music", "歌单还是空的", "在歌曲菜单里选择「添加到歌单」", '<a class="btn btn-ghost" href="#/library">去曲库添加</a>'));
     const el = page(html);
 
+    const dd = $("#pdDedupe", el);
+    if (dd) dd.addEventListener("click", () => {
+      const n = C.dedupePlaylist(pl.id);
+      UI().toast(n > 0 ? "已去掉 " + n + " 首重复" : "没有重复", "success");
+      global.App.Router.refresh();
+    });
     $("#pdPlay", el).addEventListener("click", () => P().playList(songs.map((s) => s.id), 0));
     $("#pdShuffle", el).addEventListener("click", () => P().playList(songs.map((s) => s.id), Math.floor(Math.random() * songs.length)));
     $("#pdRename", el).addEventListener("click", () =>

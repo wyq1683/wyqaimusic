@@ -130,7 +130,7 @@
 
   // 单一版本号来源：侧栏、设置页、更新公告都读它。
   // 每次发版改这里 + index.html 的缓存戳。
-  const VERSION = "2.7.3";
+  const VERSION = "2.7.4";
 
   function read(key, fallback) {
     try {
@@ -493,16 +493,53 @@
     return pl;
   }
   // 导入歌单：一次性创建含多首歌曲的歌单（单次写入，避免逐首 addToPlaylist 的多次写盘）
+  // 去重保序：同一首歌在歌单里出现两次是最常见的脏数据来源
+  function uniqIds(ids) {
+    const seen = Object.create(null);
+    const out = [];
+    (ids || []).forEach((id) => { if (id && !seen[id]) { seen[id] = 1; out.push(id); } });
+    return out;
+  }
+
   function importPlaylist(name, songIds) {
     const u = currentUser();
     if (!u) return null;
     const d = getUserData(u);
-    const pl = { id: "pl_" + Date.now().toString(36), name: (name || "导入的歌单").trim() || "导入的歌单", songIds: (songIds || []).slice() };
+    const pl = { id: "pl_" + Date.now().toString(36), name: (name || "导入的歌单").trim() || "导入的歌单", songIds: uniqIds(songIds) };
     d.playlists.push(pl);
     saveUserData(u, d);
     syncNow();
     bus.emit("data:changed");
     return pl;
+  }
+
+  // 合并到已有歌单（导入同一个歌单时不该多出一条同名记录，也不该出现两份一半的歌）
+  function mergePlaylistSongs(plId, songIds) {
+    const u = currentUser();
+    if (!u) return 0;
+    const d = getUserData(u);
+    const pl = d.playlists.find((p) => p.id === plId);
+    if (!pl) return 0;
+    const before = pl.songIds.length;
+    pl.songIds = uniqIds(pl.songIds.concat(songIds || []));
+    saveUserData(u, d);
+    syncNow();
+    bus.emit("data:changed");
+    return pl.songIds.length - before;
+  }
+
+  // 去掉歌单里的重复歌曲，返回删掉的条数
+  function dedupePlaylist(plId) {
+    const u = currentUser();
+    if (!u) return 0;
+    const d = getUserData(u);
+    const pl = d.playlists.find((p) => p.id === plId);
+    if (!pl) return 0;
+    const before = pl.songIds.length;
+    pl.songIds = uniqIds(pl.songIds);
+    const removed = before - pl.songIds.length;
+    if (removed > 0) { saveUserData(u, d); syncNow(); bus.emit("data:changed"); }
+    return removed;
   }
   function renamePlaylist(plId, name) {
     const u = currentUser(); if (!u) return;
@@ -894,6 +931,7 @@
     addHistory, toggleFavorite, addFavorites, isFavorite, getFavorites,
     createPlaylist, importPlaylist, renamePlaylist, deletePlaylist, addToPlaylist,
     removeFromPlaylist, getPlaylists, getPlaylist,
+    mergePlaylistSongs, dedupePlaylist, uniqIds,
     getPlays, bumpPlays,
     social,
     getSearchHistory, addSearchHistory, clearSearchHistory,

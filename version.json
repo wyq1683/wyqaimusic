@@ -1,11 +1,10 @@
 {
-  "version": "2.7.2",
-  "released": "2026-11-01",
-  "releaseUrl": "https://github.com/wyq1683/wyqaimusic/releases/tag/v2.7.2",
+  "version": "2.7.3",
+  "released": "2026-11-02",
+  "releaseUrl": "https://github.com/wyq1683/wyqaimusic/releases/tag/v2.7.3",
   "highlights": [
-    "侧栏新增「下载 App」入口",
-    "设置 → 关于可检查更新、下载最新安装包",
-    "版本号统一到一处，不再对不上"
+    "点歌即播整张歌单，队列顺序对了",
+    "返回页面恢复滚动位置，并自动定位到正在播放的那首"
   ],
   "apk": {
     "version": "1.4",

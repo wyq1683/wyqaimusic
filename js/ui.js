@@ -1234,11 +1234,20 @@
       if (action === "play-song" && songId) {
         const song = D.get(songId);
         if (!song) return;
-        // 智能入队：若当前队列包含该歌则直接跳转，否则以「当前列表 + 点击项」方式播放
+        // 点一首歌 = 播「它所在的这张列表」，从这首开始。
+        // 旧逻辑是「队列里没有就往队尾追加」，结果在歌单里点歌，
+        // 队列里留着上一批歌，顺序和歌单完全对不上。
+        const holder = t.closest(".lib-list, .card-grid");
+        let ids = holder ? $$("[data-song]", holder).map((n) => n.dataset.song).filter(Boolean) : [];
+        // 同一容器里 card-play 按钮和卡片本身都带 data-song，去重保序
+        ids = ids.filter((id, i) => ids.indexOf(id) === i);
+        if (!ids.length) ids = [songId];
+        const start = Math.max(0, ids.indexOf(songId));
         const q = global.App.Player.queueList();
-        const inQ = q.indexOf(songId);
-        if (inQ >= 0) global.App.Player.playAt(inQ);
-        else global.App.Player.playList(q.concat([songId]), q.length);
+        const same = q.length === ids.length && q.every((id, i) => id === ids[i]);
+        // 队列已经是这张列表：只挪播放位置，不重排、不打断
+        if (same) global.App.Player.playAt(start);
+        else global.App.Player.playList(ids, start);
       }
       if (action === "song-menu" && songId) {
         e.stopPropagation();

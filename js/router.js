@@ -9,6 +9,9 @@
 
   let current = null; // {route, params, query}
   let firstRender = true;
+  // 每个路径记住离开时的滚动位置：从歌手页/播放页返回歌单时，
+  // 不该把用户扔回顶部再让他自己划回来。
+  const scrollMem = new Map();
   // 应用内导航栈：history.back() 在深链 / 全屏场景下没有可靠回退目标，
   // 用它来判断「上一页」到底是哪一页，没有则回首页。
   const navStack = [];
@@ -76,6 +79,8 @@
     const { path, query } = parseHash();
     const m = matchRoute(path);
     const view = $("#view");
+    // 先记下「上一页」的位置，再往下走（lastPath 马上会被改成当前路径）
+    const prevPath = lastPath;
 
     // 记录导航栈（同一路径不重复入栈；软刷新不改变栈）
     if (path !== lastPath) {
@@ -129,21 +134,45 @@
     // 转场：旧页退出 → 新页进入（soft 模式静默替换并保持滚动）
     const old = $(".page", view);
     const keepScroll = view.scrollTop;
+    if (prevPath) scrollMem.set(prevPath, keepScroll);
     if (old && !firstRender && !soft) {
       old.classList.add("page-exit");
       view.appendChild(pageEl);
       setTimeout(() => old.remove(), 260);
-      view.scrollTop = 0;
     } else {
       if (old) old.remove();
       view.appendChild(pageEl);
-      view.scrollTop = soft ? keepScroll : 0;
+    }
+    if (soft) {
+      view.scrollTop = keepScroll;
+    } else {
+      // 回到这一页：恢复到上次离开的位置；没记录过就滚到正在播放的那首
+      const want = scrollMem.get(path) || 0;
+      view.scrollTop = 0;
+      requestAnimationFrame(() => {
+        if (want > 0) view.scrollTop = want;
+        else scrollToPlaying(view);
+      });
     }
     firstRender = false;
     if (!soft) endProgress();
 
     // 关闭移动端侧栏
     document.body.classList.remove("sb-open");
+  }
+
+  // 页面里若有「正在播放」的行，把它滚到可视区中间。
+  // 只在没有滚动记忆时用，避免覆盖用户自己的位置。
+  function scrollToPlaying(view) {
+    let row = view.querySelector(".song-row.playing, .q-item.playing");
+    if (!row) {
+      // 冷启动时 currentPlaying 还没回填，类名没打上 —— 退一步按 id 找
+      const P = global.App.Player;
+      const cur = P && P.currentSong ? P.currentSong() : null;
+      if (cur) row = view.querySelector('.song-row[data-song="' + cur.id + '"]');
+    }
+    if (!row) return;
+    C.centerInScroll(view, row);
   }
 
   // 软刷新：数据变更后原地重绘当前页（无转场动画、保持滚动位置）
@@ -176,6 +205,13 @@
     // 注意：不能直接把 render 传给 hashchange —— 事件对象是 truthy，会被当成 soft 参数
     window.addEventListener("hashchange", function () { render(); });
     $("#topbarBack").addEventListener("click", () => back());
+    // 点导航栏 = 从头看这一页，清掉它的滚动记忆（返回时才恢复位置）
+    document.addEventListener("click", (e) => {
+      const a = e.target && e.target.closest && e.target.closest("a[data-route]");
+      if (!a) return;
+      const href = (a.getAttribute("href") || "").replace(/^#/, "");
+      if (href) scrollMem.delete(href);
+    });
     if (!location.hash) location.hash = "#/home";
     render();
   }

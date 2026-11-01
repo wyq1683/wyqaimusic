@@ -3264,3 +3264,92 @@ body[data-np="1"].has-snack .toast-wrap { bottom: calc(86px + var(--safe-b)); }
   .sk { animation: none; background: var(--glass-card); }
   .sk-hint { animation: none; }
 }
+
+/* ==================== 21. 歌词展开 / 收起 ====================
+   上一版为了让整页「一屏放下」，把歌词压到 200px，只能看到三四行 ——
+   能看但没法读。这里给一个明确的展开态：歌词撑满，其余元素让位。
+   收起只需再点一次按钮，或点歌词空白处。 */
+.np-tabs { align-items: center; }
+.np-expand {
+  margin-left: auto;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--hairline);
+  border-radius: 50%;
+  background: var(--glass-card);
+  color: var(--text-2);
+  cursor: pointer;
+  transition: background var(--dur-1) ease, color var(--dur-1) ease, transform 200ms var(--ease-spring);
+}
+.np-expand:hover { background: var(--glass-card-hover); color: var(--text-1); }
+.np-expand:active { transform: scale(0.92); }
+.np-expand.is-on {
+  background: var(--accent);
+  border-color: transparent;
+  color: #fff;
+  transform: rotate(180deg);
+}
+.np-expand svg { transition: transform 220ms var(--ease-spring); }
+
+/* ⚠️ 关键：np-side 里还有一层 #npLyricPane / #npQueuePane。
+   歌词的 flex:1 是相对这层算的，这层没有 flex 就按内容撑到 878px，
+   整块被 side 的 overflow 裁掉 —— 看起来就像「歌词区划不动」。
+   所以中间层也必须参与 flex 分配。 */
+.np-side > #npLyricPane {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.np-side > #npQueuePane {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* 展开态：只剩「歌词」和它的开关 */
+.np-page.lyrics-full .np-cover-wrap,
+.np-page.lyrics-full .np-progress,
+.np-page.lyrics-full .np-controls,
+.np-page.lyrics-full .np-spec,
+.np-page.lyrics-full .np-actions { display: none; }
+
+.np-page.lyrics-full .np-side {
+  flex: 1;
+  min-height: 0;
+  padding-top: 0;
+}
+.np-page.lyrics-full .np-tabs { margin-bottom: 0; }
+
+.np-page.lyrics-full .np-lyrics {
+  height: auto;
+  flex: 1;
+  min-height: 0;
+  padding: 26px 10px 40px;
+  mask-image: linear-gradient(180deg, transparent, #000 9%, #000 88%, transparent);
+  -webkit-mask-image: linear-gradient(180deg, transparent, #000 9%, #000 88%, transparent);
+}
+.np-page.lyrics-full .lyric-line {
+  font-size: 1.16rem;
+  line-height: 1.75;
+  padding: 12px 6px;
+  text-align: center;
+}
+.np-page.lyrics-full .lyric-line.active {
+  font-size: 1.3rem;
+  font-weight: 600;
+}
+/* 展开时底部没有播放条，页面可以吃满整个视口 */
+@media (max-width: 900px) {
+  .np-page.lyrics-full {
+    height: calc(100dvh - var(--topbar-h) - var(--safe-t) - 8px);
+    padding-bottom: var(--safe-b);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .np-expand, .np-expand svg { transition: none; }
+}

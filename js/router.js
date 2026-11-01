@@ -207,22 +207,24 @@
    *  ③ 结束时必须清 name，否则下一次进播放页会撞重名
    */
   const MORPH_NAME = "song-cover";
+  // 转场进行中再点一次会造出两个同名元素，浏览器会直接放弃整次过渡（并报 duplicate）
+  let morphing = false;
 
+  // ⚠️ 不能在 View Transition 的 update callback 里等 requestAnimationFrame。
+  // 浏览器在 callback 执行期间会暂停渲染管线，rAF 可能永远不会触发 —— 表现就是
+  // 「点封面卡住约 3 秒，然后瞬间切换、动画消失」（Chrome 对 callback 有超时，超时后直接跳过过渡）。
+  // hashchange 是普通任务，不受渲染暂停影响；render 在它的回调里同步完成，DOM 此时已就绪。
   function waitForRender() {
     return new Promise((resolve) => {
-      let settled = false;
-      const done = () => {
-        if (settled) return;
-        settled = true;
-        // 两帧：一帧给 render 插入 DOM，一帧给样式计算完成
-        requestAnimationFrame(() => requestAnimationFrame(resolve));
-      };
-      window.addEventListener("hashchange", done, { once: true });
-      setTimeout(done, 120);   // hash 未变（同页）时的兜底，别让转场卡住
+      let done = false;
+      const finish = () => { if (!done) { done = true; resolve(); } };
+      window.addEventListener("hashchange", finish, { once: true });
+      setTimeout(finish, 160);   // hash 未变（同页）时的兜底
     });
   }
 
   function endMorph() {
+    morphing = false;
     document.documentElement.classList.remove("vt-running");
     global.App._morphPending = false;
     // 按 data-morph 找，不靠 style 属性串匹配（换行/顺序都会导致匹配不到）
@@ -232,6 +234,7 @@
   }
 
   function morphTo(path, fromEl) {
+    if (morphing) return null;      // 上一次还没结束，忽略这次（否则 duplicate name）
     // 支持不了就退回普通导航，不能白屏或卡住
     if (!fromEl || typeof document.startViewTransition !== "function") {
       endMorph();
@@ -239,6 +242,7 @@
       return null;
     }
     endMorph();                      // 先清干净上一次可能残留的 name
+    morphing = true;
     fromEl.style.viewTransitionName = MORPH_NAME;
     global.App._morphPending = true;
     document.documentElement.classList.add("vt-running");
@@ -253,6 +257,7 @@
       });
     } catch (e) {
       fromEl.style.viewTransitionName = "";
+      morphing = false;
       endMorph();
       navigate(path);
       return null;

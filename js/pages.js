@@ -1353,9 +1353,15 @@
       "</button>" +
       "</div></div>" +
 
-      '<div class="np-side"><div class="social-tabs" style="margin-bottom:14px">' +
+      '<div class="np-side"><div class="social-tabs np-tabs" style="margin-bottom:14px">' +
       '<button class="stab active" data-nptab="lyric">歌词</button>' +
       '<button class="stab" data-nptab="queue">队列 ' + P().queueList().length + "</button>" +
+      // 上一版为了「一屏放下」把歌词压到 200px，只能看到三四行。
+      // 给一个明确的展开入口，撑满整屏看歌词；再点收起。
+      // 没歌词时展开也没内容，直接不显示
+      (P().state.lyrics && P().state.lyrics.length
+        ? '<button class="np-expand" id="npLyricExpand" type="button" aria-label="展开歌词" aria-pressed="false" title="展开歌词">' + C.icon("expand", 16) + "</button>"
+        : "") +
       "</div>" +
       '<div id="npLyricPane"></div>' +
       '<div id="npQueuePane" hidden></div></div>' +
@@ -1442,9 +1448,17 @@
       const pane = $("#npQueuePane", el);
       const q = P().queueList();
       const cur = P().state.index;
+      // 995 首的队列一次铺完会卡住整个 Tab（实测 1~2 秒无响应）。
+      // 只渲染当前附近的一段，其余给明确提示。
+      const MAX_ROWS = 120;
+      const from = q.length > MAX_ROWS ? Math.max(0, Math.min(cur - 40, q.length - MAX_ROWS)) : 0;
+      const view = q.slice(from, from + MAX_ROWS);
       pane.innerHTML =
-        '<div class="q-head"><span>队列 · ' + q.length + " 首</span></div>" +
-        q.map((id, i) => {
+        '<div class="q-head"><span>队列 · ' + q.length + " 首" +
+        (from > 0 ? " · 显示第 " + (from + 1) + "–" + (from + view.length) + " 首" : "") +
+        "</span></div>" +
+        view.map((id, vi) => {
+          const i = from + vi;
           const s = D.get(id);
           if (!s) return "";
           return (
@@ -1472,6 +1486,53 @@
       pane.style.maxHeight = Math.max(120, Math.min(460, Math.round(avail))) + "px";
     }
     const onNpResize = () => fitQueueHeight();
+
+    /* ---------------- 歌词展开 / 收起 ---------------- */
+    const npPageEl = el.querySelector(".np-page");
+    const expandBtn = $("#npLyricExpand", el);
+    function setLyricsFull(on) {
+      if (!npPageEl) return;
+      npPageEl.classList.toggle("lyrics-full", !!on);
+      if (expandBtn) {
+        expandBtn.classList.toggle("is-on", !!on);
+        expandBtn.setAttribute("aria-pressed", String(!!on));
+        expandBtn.setAttribute("aria-label", on ? "收起歌词" : "展开歌词");
+        expandBtn.title = on ? "收起歌词" : "展开歌词";
+      }
+      if (on) {
+        // 展开时一定看歌词；并把当前行重新居中（容器高度变了，之前的滚动量失效）
+        if (npTab !== "lyric") {
+          const btn = $('[data-nptab="lyric"]', el);
+          if (btn) btn.click();
+        }
+        // 容器高度变了，之前的滚动量失效：等布局稳定后把当前行重新居中
+        setTimeout(() => {
+          const box = $("#npLyricScroll", el);
+          const idx = P().state.lyricIndex;
+          const line = box && idx >= 0 ? $$(".lyric-line", box)[idx] : null;
+          if (line) C.centerInScroll(box, line, false);
+        }, 90);
+      }
+    }
+    if (expandBtn) {
+      expandBtn.addEventListener("mousedown", (e) => { if (e.button === 0) e.preventDefault(); });
+      expandBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        setLyricsFull(!npPageEl.classList.contains("lyrics-full"));
+      });
+    }
+    // 展开态下点歌词空白处也能收起。
+    // 必须用委托：renderLyric 每次都重建 #npLyricScroll，直接绑在它身上会失效。
+    const sideEl = el.querySelector(".np-side");
+    if (sideEl) {
+      sideEl.addEventListener("click", (e) => {
+        if (!npPageEl.classList.contains("lyrics-full")) return;
+        if (e.target.closest(".lyric-line")) return;             // 点具体的行不收起
+        if (e.target.closest(".np-expand, .stab")) return;       // 按钮自己处理
+        setLyricsFull(false);
+      });
+    }
+
     $$("[data-nptab]", el).forEach((b) => {
       // 鼠标点击不取焦：列表变高后浏览器会把“焦点元素”滚进视野，导致整页跳到列表底部
       b.addEventListener("mousedown", (e) => { if (e.button === 0) e.preventDefault(); });
@@ -1479,6 +1540,7 @@
         const view = document.getElementById("view");
         const keepTop = view ? view.scrollTop : 0; // 切 Tab 后锁住滚动位置，避免整页跳到列表底部
         npTab = b.dataset.nptab;
+        if (npTab !== "lyric") setLyricsFull(false);   // 全屏只服务歌词，切队列就退出
         $$("[data-nptab]", el).forEach((x) => x.classList.toggle("active", x === b));
         $("#npLyricPane", el).hidden = npTab !== "lyric";
         $("#npQueuePane", el).hidden = npTab !== "queue";

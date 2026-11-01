@@ -1,10 +1,10 @@
 {
-  "version": "2.7.8",
+  "version": "2.7.9",
   "released": "2026-11-02",
-  "releaseUrl": "https://github.com/wyq1683/wyqaimusic/releases/tag/v2.7.8",
+  "releaseUrl": "https://github.com/wyq1683/wyqaimusic/releases/tag/v2.7.9",
   "highlights": [
-    "逐字高亮：亮过的字保持点亮",
-    "只有 LRC 的歌也能看清逐字节奏"
+    "逐字歌词铺满整行，跟着人声走",
+    "长间奏自动压缩，不再慢慢爬"
   ],
   "apk": {
     "version": "1.4",

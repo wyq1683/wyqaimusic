@@ -1362,9 +1362,10 @@
       // 去掉译文 span，取纯主歌文本（供伪逐字退化使用）
       return l.text.replace(/<span class='lyric-trans'>[\s\S]*?<\/span>/g, "");
     }
-    // LRC 只有行时间，没有逐字时间。把整行均摊到「到下一行之前的全部间隙」是错的：
-    // 间奏/尾奏一长，人早就唱完了，字却还在慢慢爬。
-    // 这里按「文字自然语速」估一个演唱时长，再和间隙取小。
+    // LRC 只有行时间，没有逐字时间，所以只能估。两个坑都要躲：
+    //  ① 整段间隙铺满：遇到 20 秒间奏，字会慢慢爬 20 秒（上一版之前的毛病）
+    //  ② 一律按「自然语速」收尾：普通句子也提前唱完，人声还在继续（现在这版）
+    // 折中：短间隙（正常一句）就铺满，跟着唱；长间隙（间奏）才压到自然语速的 2.2 倍。
     function pseudoWords(text, t, nextT) {
       const chars = Array.from(text);
       if (!chars.length) return null;
@@ -1376,10 +1377,13 @@
         if (/[，。！？、；：,.!?;:'"“”‘’（）()\[\]—-]/.test(c)) return 0.2;
         return 0.5;
       };
-      const UNIT = 0.26;                    // 权重 1 对应的秒数（约每秒 4 个字，接近中文演唱语速）
+      const UNIT = 0.26;
       const gap = Math.max(nextT - t, 0.6);
       const total = chars.reduce((a, c) => a + weight(c), 0);
-      const step = Math.min(total * UNIT, gap) / total;
+      const natural = total * UNIT;
+      const cap = Math.max(natural * 2.2, 2.4);   // 允许比自然语速慢一倍多，再多就当间奏
+      const span = Math.min(gap, cap);
+      const step = span / total;
       let acc = 0;
       return chars.map((c) => {
         const start = t + acc * step;
@@ -1387,6 +1391,7 @@
         return { text: c, start: start, end: t + acc * step };
       });
     }
+
     function renderLyric() {
       const pane = $("#npLyricPane", el);
       const lyrics = P().state.lyrics;

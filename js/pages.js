@@ -333,6 +333,23 @@
         '<button class="btn btn-ghost" id="plImport" style="height:32px">' + C.icon("download", 14) + " 导入歌单</button></div>";
     }
     html += "</div>";
+
+    // 有歌单的歌丢了（早期导入未存全）就在顶部提示；记得来源的可以一键补
+    let broken = 0, fixable = 0;
+    pls.forEach((p) => {
+      let ok = 0;
+      p.songIds.forEach((id) => { if (D.get(id)) ok++; });
+      if (ok < p.songIds.length) { broken++; if (p.source) fixable++; }
+    });
+    if (broken > 0) {
+      html += '<div class="src-note" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">' +
+        (fixable > 0
+          ? "有 " + fixable + " 个歌单可以从原歌单补齐缺失的歌曲。" +
+            '<button class="btn btn-ghost" id="plRepair" style="height:28px">' + C.icon("refresh", 13) + " 一键同步</button>"
+          : "有 " + broken + " 个歌单缺少歌曲信息，重新导入同一个歌单即可恢复。") +
+        "</div>";
+    }
+
     if (!pls.length) {
       html += UI().emptyState(
         "playlist",
@@ -356,6 +373,24 @@
     const el = page(html);
     const nb = $("#plNew", el) || $("#plNew2", el);
     if (nb) nb.addEventListener("click", createPlaylistFlow);
+    const rp = $("#plRepair", el);
+    if (rp) rp.addEventListener("click", async () => {
+      rp.disabled = true;
+      rp.textContent = "同步中…";
+      let total = 0, recovered = 0, done = 0;
+      const targets = C.getPlaylists().filter((p) => {
+        if (!p.source) return false;
+        let ok = 0;
+        p.songIds.forEach((id) => { if (D.get(id)) ok++; });
+        return ok < p.songIds.length;
+      });
+      for (const pl of targets) {
+        try { const r = await syncPlaylistFromSource(pl); total += r.added; recovered += r.recovered; done++; } catch (e) { /* 单个失败不拖垮 */ }
+      }
+      const got = recovered + total;
+      UI().toast(done ? "已同步 " + done + " 个歌单，补回 " + got + " 首" : "同步失败，请稍后再试", done ? "success" : "error");
+      global.App.Router.refresh();
+    });
     const ib = $("#plImport", el);
     if (ib) ib.addEventListener("click", importPlaylistFlow);
     const lb = $("#plLogin", el);
@@ -409,6 +444,44 @@
     return null;
   }
 
+  function playlistEndpoint(source) {
+    const isQQ = source.type === "qq";
+    return (isQQ ? "api/qq.php?action=playlist&id=" : "api/netease.php?action=playlist&id=") + encodeURIComponent(source.id);
+  }
+
+  // 拉一张在线歌单：返回去重后的原始条目（同一首在多碟专辑里可能出现多次）
+  async function pullPlaylistTracks(source) {
+    const res = await fetch(playlistEndpoint(source));
+    const data = await res.json();
+    if (!data.ok || !Array.isArray(data.data) || !data.data.length) {
+      throw new Error(data.error || "歌单拉取失败（可能为私密歌单）");
+    }
+    const seen = Object.create(null);
+    const raws = [];
+    data.data.forEach((t) => {
+      if (!t || !t.id || seen[String(t.id)]) return;
+      seen[String(t.id)] = 1;
+      raws.push(Object.assign({}, t, { source: t.source || source.type }));
+    });
+    return { name: data.name, raws };
+  }
+
+  // 重新同步一张记住来源的歌单：把上游现有歌曲补齐进来（只增不删，避免误删用户手动加的）
+  async function syncPlaylistFromSource(pl) {
+    if (!pl || !pl.source) return { added: 0, recovered: 0, total: 0 };
+    // 「补回」可能只是把丢失的歌曲信息重新注册回来（id 本来就在歌单里），
+    // 所以除了新增数量，还要看能解析的数量变化，否则会说成「补回 0 首」。
+    const before = pl.songIds.filter((id) => D.get(id)).length;
+    const { raws } = await pullPlaylistTracks(pl.source);
+    const fulls = D.registerMany(raws);
+    const ids = fulls.map((f) => f.id);
+    const added = C.mergePlaylistSongs(pl.id, ids);
+    C.touchPlaylistSource(pl.id, pl.source);
+    const cur = C.getPlaylist(pl.id);
+    const after = cur ? cur.songIds.filter((id) => D.get(id)).length : before;
+    return { added: added, recovered: Math.max(0, after - before), total: ids.length };
+  }
+
   async function importPlaylistFlow() {
     if (!C.isLoggedIn()) { UI().toast("请先登录", "error"); UI().openAuthModal("login"); return; }
     const url = await UI().confirmDialog({
@@ -423,39 +496,25 @@
     if (!parsed) { UI().toast("无法识别的歌单链接，请粘贴网易云或 QQ 音乐的歌单链接", "error"); return; }
 
     const isQQ = parsed.source === "qq";
-    const endpoint = isQQ
-      ? "api/qq.php?action=playlist&id=" + encodeURIComponent(parsed.id)
-      : "api/netease.php?action=playlist&id=" + encodeURIComponent(parsed.id);
+    const source = { type: parsed.source, id: String(parsed.id) };
 
     UI().toast("正在导入歌单...");
     try {
-      const res = await fetch(endpoint);
-      const data = await res.json();
-      if (!data.ok || !data.data || !data.data.length) {
-        UI().toast(data.error || "歌单导入失败（可能为私密歌单）", "error");
-        return;
-      }
-      // 同一首可能在上游出现多次（多碟专辑），先去重再注册
-      const seen = Object.create(null);
-      const raws = [];
-      data.data.forEach((t) => {
-        if (!t || !t.id || seen[String(t.id)]) return;
-        seen[String(t.id)] = 1;
-        raws.push(t);
-      });
+      const { raws, name: srcName } = await pullPlaylistTracks(source);
       // 批量注册：一次落盘。早期是逐首 registerExternal，
       // 995 首就是 995 次全量 JSON 序列化，还会撞上注册表上限把前面的歌挤掉。
       const fulls = D.registerMany(raws);
       const songIds = fulls.map((f) => f.id);
       if (!songIds.length) { UI().toast("歌单中没有可导入的歌曲", "error"); return; }
 
-      const name = (data.name || (isQQ ? "QQ音乐歌单" : "网易云歌单")).trim() || "导入的歌单";
+      const name = (srcName || (isQQ ? "QQ音乐歌单" : "网易云歌单")).trim() || "导入的歌单";
       const same = C.getPlaylists().find((p) => p.name === name);
       if (same) {
         const added = C.mergePlaylistSongs(same.id, songIds);
+        C.touchPlaylistSource(same.id, source);
         UI().toast(added > 0 ? "已合并 " + added + " 首到「" + name + "」" : "「" + name + "」已是最新，没有新歌", "success");
       } else {
-        C.importPlaylist(name, songIds);
+        C.importPlaylist(name, songIds, source);
         UI().toast("已导入 " + songIds.length + " 首歌曲到「" + name + "」✅", "success");
       }
       // 同 hash 赋值不会触发 hashchange：已在歌单页时软刷新，否则跳转
@@ -486,6 +545,7 @@
       '<div class="ph-actions">' +
       '<button class="btn btn-primary" id="pdPlay">' + C.icon("play", 14) + " 播放全部</button>" +
       '<button class="btn btn-ghost" id="pdShuffle">' + C.icon("shuffle", 14) + " 随机</button>" +
+      (pl.source ? '<button class="btn btn-ghost" id="pdSync" title="从原歌单重新拉取">' + C.icon("refresh", 14) + " 同步歌单</button>" : "") +
       (dupes > 0 ? '<button class="btn btn-ghost" id="pdDedupe">' + C.icon("check", 14) + " 去掉 " + dupes + " 首重复</button>" : "") +
       '<button class="btn btn-ghost" id="pdRename">' + C.icon("edit", 14) + " 重命名</button>" +
       '<button class="btn btn-danger" id="pdDelete">' + C.icon("trash", 14) + " 删除</button>" +
@@ -496,6 +556,25 @@
     html += missNote + (songs.length ? UI().songListHTML(songs) : UI().emptyState("music", "歌单还是空的", "在歌曲菜单里选择「添加到歌单」", '<a class="btn btn-ghost" href="#/library">去曲库添加</a>'));
     const el = page(html);
 
+    const syn = $("#pdSync", el);
+    if (syn) syn.addEventListener("click", async () => {
+      syn.disabled = true;
+      const label = syn.innerHTML;
+      syn.innerHTML = C.icon("refresh", 14) + " 同步中…";
+      try {
+        const r = await syncPlaylistFromSource(pl);
+        UI().toast(
+          r.recovered > 0 ? "已补齐 " + r.recovered + " 首缺失的歌曲"
+            : (r.added > 0 ? "已新增 " + r.added + " 首" : "已是最新（共 " + r.total + " 首）"),
+          "success"
+        );
+        global.App.Router.refresh();
+      } catch (e) {
+        UI().toast(e.message || "同步失败", "error");
+        syn.disabled = false;
+        syn.innerHTML = label;
+      }
+    });
     const dd = $("#pdDedupe", el);
     if (dd) dd.addEventListener("click", () => {
       const n = C.dedupePlaylist(pl.id);

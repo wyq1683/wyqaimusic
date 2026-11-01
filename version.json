@@ -1,11 +1,10 @@
 {
-  "version": "2.7.4",
+  "version": "2.7.5",
   "released": "2026-11-02",
-  "releaseUrl": "https://github.com/wyq1683/wyqaimusic/releases/tag/v2.7.4",
+  "releaseUrl": "https://github.com/wyq1683/wyqaimusic/releases/tag/v2.7.5",
   "highlights": [
-    "大歌单导入不再丢歌",
-    "同名歌单自动合并、重复自动去掉",
-    "列表与详情数量一致"
+    "歌单记住来源，可一键同步补歌",
+    "歌单列表可一键修复全部缺歌的歌单"
   ],
   "apk": {
     "version": "1.4",

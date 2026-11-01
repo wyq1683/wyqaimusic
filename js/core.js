@@ -130,7 +130,7 @@
 
   // 单一版本号来源：侧栏、设置页、更新公告都读它。
   // 每次发版改这里 + index.html 的缓存戳。
-  const VERSION = "2.7.4";
+  const VERSION = "2.7.5";
 
   function read(key, fallback) {
     try {
@@ -501,11 +501,18 @@
     return out;
   }
 
-  function importPlaylist(name, songIds) {
+  function importPlaylist(name, songIds, source) {
     const u = currentUser();
     if (!u) return null;
     const d = getUserData(u);
-    const pl = { id: "pl_" + Date.now().toString(36), name: (name || "导入的歌单").trim() || "导入的歌单", songIds: uniqIds(songIds) };
+    const pl = {
+      id: "pl_" + Date.now().toString(36),
+      name: (name || "导入的歌单").trim() || "导入的歌单",
+      songIds: uniqIds(songIds),
+      // 记住来源（网易云/QQ 的歌单 id），以后歌单更新或本地丢歌都能一键重新拉
+      source: source && source.id ? { type: source.type || "netease", id: String(source.id) } : null,
+      syncedAt: Date.now(),
+    };
     d.playlists.push(pl);
     saveUserData(u, d);
     syncNow();
@@ -514,6 +521,20 @@
   }
 
   // 合并到已有歌单（导入同一个歌单时不该多出一条同名记录，也不该出现两份一半的歌）
+  // 重新同步时记录时间；source 只增不减（用户手动建的歌单没有来源）
+  function touchPlaylistSource(plId, source) {
+    const u = currentUser();
+    if (!u) return;
+    const d = getUserData(u);
+    const pl = d.playlists.find((p) => p.id === plId);
+    if (!pl) return;
+    if (source && source.id) pl.source = { type: source.type || "netease", id: String(source.id) };
+    pl.syncedAt = Date.now();
+    saveUserData(u, d);
+    queueSync();
+    bus.emit("data:changed");
+  }
+
   function mergePlaylistSongs(plId, songIds) {
     const u = currentUser();
     if (!u) return 0;
@@ -931,7 +952,7 @@
     addHistory, toggleFavorite, addFavorites, isFavorite, getFavorites,
     createPlaylist, importPlaylist, renamePlaylist, deletePlaylist, addToPlaylist,
     removeFromPlaylist, getPlaylists, getPlaylist,
-    mergePlaylistSongs, dedupePlaylist, uniqIds,
+    mergePlaylistSongs, dedupePlaylist, uniqIds, touchPlaylistSource,
     getPlays, bumpPlays,
     social,
     getSearchHistory, addSearchHistory, clearSearchHistory,

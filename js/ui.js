@@ -46,6 +46,25 @@
     );
   }
 
+  // 搜索/列表加载时的骨架行。行数与真实结果接近，避免加载完成后高度跳一下；
+  // 空白等接口是最像"卡死"的状态，灰条至少给出"在动"的证据。
+  function skeletonRows(n, hint) {
+    const rows = n || 4;
+    let out = '<div class="sk-list" aria-busy="true" aria-live="polite">';
+    for (let i = 0; i < rows; i++) {
+      out +=
+        '<div class="sk-row">' +
+        '<span class="sk sk-cover"></span>' +
+        '<span class="sk-lines">' +
+        '<span class="sk sk-line" style="width:' + (74 - i * 7) + '%"></span>' +
+        '<span class="sk sk-line" style="width:' + (36 + i * 5) + '%"></span>' +
+        "</span></div>";
+    }
+    out += "</div>";
+    if (hint) out += '<div class="sk-hint">' + esc(hint) + "</div>";
+    return out;
+  }
+
   function emptyState(ic, title, sub, actionHtml) {
     return (
       '<div class="empty">' +
@@ -1317,10 +1336,8 @@
       if (tag === "input" || tag === "textarea" || tag === "select" || e.target.isContentEditable) return;
       // 焦点在可激活元素上时，Space 交给元素自身（原生激活），不做全局播放/暂停
       if (e.target.closest && e.target.closest("button, a, [role='button'], [role='tab'], [role='menuitem']")) return;
-      if (e.code === "Space") {
-        e.preventDefault();
-        global.App.Player.toggle();
-      }
+      // 空格 / 方向键的全局处理统一放到 wireShortcuts()，
+      // 这里重复一份会导致同一次按键触发两次 toggle（暂停又播回去）
       if (e.key === "ArrowRight" && e.altKey) global.App.Player.next(false);
       if (e.key === "ArrowLeft" && e.altKey) global.App.Player.prev();
     });
@@ -1371,10 +1388,90 @@
   }
 
   /* ==================== 初始化 ==================== */
+  /* ==================== 键盘快捷键 ====================
+   * 三条保护：输入框里不响应、弹层打开时不响应、输入法选字时不响应。
+   * 少一条都会出事故（比如在搜索框按空格变成暂停播放）。 */
+  function wireShortcuts() {
+    const P = () => global.App.Player;
+    // 输入框里不接管；焦点在按钮/链接上时也不接管空格（那是"点击"，不是"播放/暂停"）
+    const inField = (t) =>
+      t && t.closest && t.closest("input, textarea, select, [contenteditable='true']");
+    const onControl = (t) =>
+      t && t.closest && t.closest("button, a, [role='button'], [role='tab'], [role='menuitem']");
+
+    document.addEventListener("keydown", (e) => {
+      if (e.isComposing || e.keyCode === 229) return;     // 中文选字
+      const mod = e.metaKey || e.ctrlKey || e.altKey;
+      if (mod) return;                                    // 不抢系统快捷键
+      const t = e.target;
+      const modalOpen = !!document.querySelector(".modal-mask");
+
+      // Esc 永远可用：先关弹层，再退播放页
+      if (e.key === "Escape") {
+        if (modalOpen) { closeModal(); e.preventDefault(); return; }
+        if (document.querySelector(".palette-mask")) return;   // 命令面板自己处理
+        if (global.App.Router.current && global.App.Router.current.route === "/now-playing") {
+          global.App.Router.back(); e.preventDefault();
+        }
+        return;
+      }
+      if (modalOpen) return;
+      if (inField(t)) return;
+
+      const key = e.key.toLowerCase();
+      // 空格用 e.code 判定：不同布局下 e.key 可能是 " " 也可能是别的
+      if (e.code === "Space") {
+        if (onControl(t)) return;      // 焦点在按钮上：交给按钮自己
+        P().toggle(); e.preventDefault(); return;
+      }
+      if (onControl(t)) return;
+
+      switch (key) {
+        case "k":
+          P().toggle(); e.preventDefault(); break;
+        case "arrowleft":
+          e.shiftKey ? P().prev() : seekBy(-5); e.preventDefault(); break;
+        case "arrowright":
+          e.shiftKey ? P().next(false) : seekBy(5); e.preventDefault(); break;
+        case "j":
+          P().prev(); e.preventDefault(); break;
+        case "l":
+          toggleFav(); e.preventDefault(); break;
+        case "m":
+          P().setVolume(P().state.muted ? 0.8 : 0); e.preventDefault(); break;
+        case "q":
+          toggleDrawer(true); e.preventDefault(); break;
+        case "/":
+          e.preventDefault();
+          if (global.App.Router.current && global.App.Router.current.route !== "/search") {
+            global.App.Router.navigate("/search");
+            setTimeout(() => { const i = document.querySelector("#searchInput"); if (i) i.focus(); }, 120);
+          } else {
+            const i = document.querySelector("#searchInput"); if (i) i.focus();
+          }
+          break;
+      }
+    });
+
+    function seekBy(sec) {
+      const a = P().audio;
+      if (!a || !isFinite(a.duration) || !a.duration) return;
+      P().seekTo(Math.max(0, Math.min(1, (a.currentTime + sec) / a.duration)));
+    }
+    function toggleFav() {
+      const song = P().currentSong();
+      if (!song) return;
+      // toggleFavorite 返回「切换后」的状态，别用切换前的 isFavorite 反推
+      const now = C.toggleFavorite(song.id);
+      toast(now ? "已收藏" : "已取消收藏", "success");
+    }
+  }
+
   function init() {
     C.applySettings(C.getSettings());
     wirePlayerBar();
     wireGlobal();
+    wireShortcuts();
     renderUser();
     renderNav("/home");
     renderSidebarPlaylists();
@@ -1594,7 +1691,7 @@
   global.App.UI = {
     init,
     coverStyle, coverHTML, smallCover,
-    sectionHead, emptyState, songCard, songRow, songListHTML, cardGridHTML,
+    sectionHead, emptyState, skeletonRows, songCard, songRow, songListHTML, cardGridHTML,
     toast, snackbar, modal, closeModal, confirmDialog, contextMenu, closeMenu,
     openPalette, openAuthModal, openPlaylistPicker, openShareModal, openSongInfo, songActions,
     renderNav, renderSidebarPlaylists, renderUser, refreshCurrentView, updateSocialBadge,

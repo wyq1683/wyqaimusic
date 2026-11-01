@@ -195,7 +195,8 @@
     function renderBody() {
       const body = $("#searchBody", el);
       if (searchState.loading) {
-        body.innerHTML = '<div class="loading-box"><span class="spinner"></span>正在搜索…</div>';
+        // 骨架代替转圈：转圈只说明"在等"，骨架还预先占好高度，加载完不会跳一下
+        body.innerHTML = UI().skeletonRows(4, "正在搜索…");
         return;
       }
       if (!searchState.searched) {

@@ -3231,3 +3231,36 @@ body[data-np="1"].has-snack .toast-wrap { bottom: calc(86px + var(--safe-b)); }
 .pb-seek-knob { transition: transform 200ms var(--ease-spring), opacity 160ms ease; }
 /* 移动端没有 hover，拖点平时是 scale(0)；按下时给到 1.45，才有"抓得住"的手感 */
 .pb-seek:active .pb-seek-knob { transform: translateX(-50%) scale(1.45); }
+
+/* ==================== 20. 骨架屏 ====================
+   加载态不用转圈：灰条预先占好行高，接口回来时列表不会整体跳一下。 */
+.sk {
+  display: block;
+  background: linear-gradient(100deg,
+    var(--glass-card) 30%,
+    var(--glass-card-hover) 50%,
+    var(--glass-card) 70%);
+  background-size: 220% 100%;
+  animation: sk-shimmer 1.25s linear infinite;
+  border-radius: var(--r-sm);
+}
+@keyframes sk-shimmer { to { background-position: -220% 0; } }
+
+.sk-list { display: flex; flex-direction: column; gap: 6px; padding: 4px 0; }
+.sk-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; }
+.sk-cover { width: 44px; height: 44px; border-radius: var(--r-sm); flex: none; }
+.sk-lines { flex: 1; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.sk-line { height: 11px; border-radius: 6px; }
+.sk-line:last-child { height: 9px; opacity: 0.65; }
+.sk-hint {
+  padding: 10px 12px 2px;
+  font-size: 0.74rem;
+  color: var(--text-3);
+  animation: sk-breathe 1.6s ease-in-out infinite;
+}
+@keyframes sk-breathe { 0%,100% { opacity: .55; } 50% { opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .sk { animation: none; background: var(--glass-card); }
+  .sk-hint { animation: none; }
+}

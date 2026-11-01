@@ -157,7 +157,7 @@
 
   // 单一版本号来源：侧栏、设置页、更新公告都读它。
   // 每次发版改这里 + index.html 的缓存戳。
-  const VERSION = "2.8.1";
+  const VERSION = "2.8.2";
 
   function read(key, fallback) {
     try {

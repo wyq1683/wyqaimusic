@@ -1905,7 +1905,9 @@ textarea.field-input { height: auto; padding: 10px 13px; resize: vertical; }
   display: inline-block;
   color: var(--text-3);
   will-change: color, filter;
-  transition: color var(--dur-2) var(--ease-out), filter var(--dur-2) var(--ease-out);
+  /* 过渡要短于每个字的间隔：0.28s 的淡入会在 0.26s 一个字的情况下糊成一片，
+     看起来像整行一起亮。0.12s 才有「一个字一个字蹦出来」的颗粒感。 */
+  transition: color 0.12s linear, filter 0.16s ease-out;
 }
 .np-lyrics--karaoke .lyric-line .kw.on {
   color: var(--text-2);   /* 已唱过的行：浅亮、不发光，把高光留给当前行 */

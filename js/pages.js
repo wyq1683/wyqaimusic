@@ -1376,7 +1376,7 @@
         if (/[，。！？、；：,.!?;:'"“”‘’（）()\[\]—-]/.test(c)) return 0.2;
         return 0.5;
       };
-      const UNIT = 0.19;                    // 权重 1 对应的秒数
+      const UNIT = 0.26;                    // 权重 1 对应的秒数（约每秒 4 个字，接近中文演唱语速）
       const gap = Math.max(nextT - t, 0.6);
       const total = chars.reduce((a, c) => a + weight(c), 0);
       const step = Math.min(total * UNIT, gap) / total;
@@ -1660,8 +1660,11 @@
         if (line) {
           const t = P().audio.currentTime;
           line.querySelectorAll(".kw").forEach((kw) => {
-            const s = parseFloat(kw.dataset.s), e = parseFloat(kw.dataset.e);
-            const on = t >= s && t < e + 0.04;
+            // 只判「开始」：唱过的字要一直亮到换行为止。
+            // 之前写成 t >= s && t < e，字唱完 0.6 秒就被熄灭，
+            // 看上去像闪一下，而不是逐个点亮后留在那里。
+            const s = parseFloat(kw.dataset.s);
+            const on = t >= s;
             if (on !== kw.classList.contains("on")) kw.classList.toggle("on", on);
           });
         }

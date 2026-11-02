@@ -3318,6 +3318,10 @@ body[data-np="1"].has-snack .toast-wrap { bottom: calc(86px + var(--safe-b)); }
 .np-page.lyrics-full .np-actions { display: none; }
 
 .np-page.lyrics-full .np-side {
+  /* 桌面上 .np-side 是 block，里面的 #npLyricPane 拿不到 flex 分配，
+     歌词会按内容撑到 1050px 顶出屏幕。这里必须显式变成纵向 flex。 */
+  display: flex;
+  flex-direction: column;
   flex: 1;
   min-height: 0;
   padding-top: 0;
@@ -3342,14 +3346,26 @@ body[data-np="1"].has-snack .toast-wrap { bottom: calc(86px + var(--safe-b)); }
   font-size: 1.3rem;
   font-weight: 600;
 }
-/* 展开时底部没有播放条，页面可以吃满整个视口 */
+/* 展开时吃满视口。桌面也必须锁高：
+   否则 .np-page 只有 min-height，歌词 flex:1 会按内容撑到 1100px+，整页超出屏幕。 */
+.np-page.lyrics-full {
+  /* 桌面是 grid 两列，展开后左列已经空了，必须切成单列 flex，
+     否则 .np-side 的 flex:1 在 grid 容器里无效，歌词又按内容撑开。 */
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  height: calc(100dvh - var(--topbar-h) - var(--safe-t) - 16px);
+  min-height: 0;
+  padding-bottom: var(--safe-b);
+}
 @media (max-width: 900px) {
-  .np-page.lyrics-full {
-    height: calc(100dvh - var(--topbar-h) - var(--safe-t) - 8px);
-    padding-bottom: var(--safe-b);
-  }
+  .np-page.lyrics-full { height: calc(100dvh - var(--topbar-h) - var(--safe-t) - 8px); }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .np-expand, .np-expand svg { transition: none; }
 }
+
+/* 展开按钮在没有歌词时禁用（常驻但降权，避免"点不动"的困惑） */
+.np-expand.is-empty { opacity: 0.4; cursor: not-allowed; }
+.np-expand.is-empty:hover { background: var(--glass-card); color: var(--text-3); }

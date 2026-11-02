@@ -156,8 +156,17 @@
     }
     if (state.index + 1 < state.queue.length) playAt(state.index + 1);
     else if (state.repeat === "all") playAt(0);
-    else if (auto) { /* 列表播完且不循环：停止 */ }
-    else bus.emit("player:ended-all", null);
+    else if (auto) {
+      // 列表播完且不循环：必须显式把状态置为暂停。
+      // 原来这里是空块，音频停了但 state.playing 一直是 true，
+      // UI 会停在「正在播放」，点播放键又从末尾立刻结束。
+      state.playing = false;
+      sessionState(false);
+      bus.emit("player:state", false);
+      bus.emit("player:ended-all", null);
+    } else {
+      bus.emit("player:ended-all", null);
+    }
   }
 
   function prev() {
@@ -439,6 +448,9 @@
     const isQQ = song.id.indexOf("qq_") === 0;
     const apply = (lines, source) => {
       if (!lines || !lines.length) return false;
+      // 竞态：慢的那首歌词可能在新歌之后才回来，直接覆盖会把歌词张冠李戴。
+      // 已切走就当作「这条链路有结果」返回 true，不再继续试其它源。
+      if (state.current && state.current.id !== song.id) return true;
       state.lyrics = lines;
       state.lyricSource = source;
       bus.emit("player:lyric", lines);
@@ -466,6 +478,7 @@
       }
     } catch (e) { /* 全部失败走下面的清空 */ }
 
+    if (state.current && state.current.id !== song.id) return;   // 已经切走了，别清别人的歌词
     state.lyrics = [];
     state.lyricSource = "";
     bus.emit("player:lyric", null);

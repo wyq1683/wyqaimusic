@@ -157,7 +157,7 @@
 
   // 单一版本号来源：侧栏、设置页、更新公告都读它。
   // 每次发版改这里 + index.html 的缓存戳。
-  const VERSION = "2.8.3";
+  const VERSION = "2.8.4";
 
   function read(key, fallback) {
     try {
@@ -970,6 +970,10 @@
     if (song.coverUrl) {
       extractCoverColor(song.coverUrl, song.title).then((c) => {
         if (getSettings().accent) return; // 取色期间用户可能已锁定主题色
+        // 取色要走代理 + canvas 采样，可能几百毫秒；这期间用户已经切到下一首了。
+        // 不校验的话新歌会被涂成上一首的颜色（看起来像「取色错了」）。
+        const P = global.App.Player;
+        if (P && P.state && P.state.current && P.state.current.id !== song.id) return;
         song.themeColor = c.accent;
         song._coverGrad = { from: c.from, to: c.to };
         setAccent(c.accent);

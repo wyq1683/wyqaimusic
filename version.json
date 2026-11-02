@@ -1,10 +1,9 @@
 {
-  "version": "2.8.3",
-  "released": "2026-11-02",
-  "releaseUrl": "https://github.com/wyq1683/wyqaimusic/releases/tag/v2.8.3",
+  "version": "2.8.4",
+  "released": "2026-11-03",
+  "releaseUrl": "https://github.com/wyq1683/wyqaimusic/releases/tag/v2.8.4",
   "highlights": [
-    "修复点封面卡三秒（转场回调不能等 rAF）",
-    "歌词可展开全屏，且终于能滚动"
+    "修 9 个问题：歌词展开按钮不可用、封面裂图、歌词/取色竞态、订阅泄漏等"
   ],
   "apk": {
     "version": "1.4",

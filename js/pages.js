@@ -1308,6 +1308,9 @@
       return page(UI().emptyState("music", "还没有开始播放", "选一首歌，进入沉浸模式", '<a class="btn btn-primary" href="#/library">去曲库</a>'));
     }
     let npSong = song0; // 跟随 player:changed 原地更新，避免整页重挂载
+    // 在别的页面切歌会留下 state.dir（只有播放页会消费它）。
+    // 不清掉的话，进播放页后第一次换曲可能用上一次遗留的方向。
+    P().state.dir = "";
     // 逐字卡拉OK 的状态：必须声明在 renderLyric 之前。
     // 之前放在函数末尾，首次 renderLyric 时命中 TDZ，进播放页直接抛
     // "Cannot access 'karaokeRAF' before initialization"，卡拉OK 整块挂掉。
@@ -1358,10 +1361,9 @@
       '<button class="stab" data-nptab="queue">队列 ' + P().queueList().length + "</button>" +
       // 上一版为了「一屏放下」把歌词压到 200px，只能看到三四行。
       // 给一个明确的展开入口，撑满整屏看歌词；再点收起。
-      // 没歌词时展开也没内容，直接不显示
-      (P().state.lyrics && P().state.lyrics.length
-        ? '<button class="np-expand" id="npLyricExpand" type="button" aria-label="展开歌词" aria-pressed="false" title="展开歌词">' + C.icon("expand", 16) + "</button>"
-        : "") +
+      // 按钮常驻。之前按「渲染时有没有歌词」决定渲不渲染 —— 而歌词是异步加载的，
+      // 进页面那一刻基本都还没有，结果按钮永远不出现。改成常驻 + 无歌词时禁用。
+      '<button class="np-expand" id="npLyricExpand" type="button" aria-label="展开歌词" aria-pressed="false" title="展开歌词">' + C.icon("expand", 16) + "</button>" +
       "</div>" +
       '<div id="npLyricPane"></div>' +
       '<div id="npQueuePane" hidden></div></div>' +
@@ -1514,10 +1516,21 @@
         }, 90);
       }
     }
+    function syncExpandAvailability() {
+      if (!expandBtn) return;
+      const has = !!(P().state.lyrics && P().state.lyrics.length);
+      expandBtn.classList.toggle("is-empty", !has);
+      expandBtn.title = has ? (expandBtn.classList.contains("is-on") ? "收起歌词" : "展开歌词") : "这首歌还没有歌词";
+    }
     if (expandBtn) {
+      syncExpandAvailability();
       expandBtn.addEventListener("mousedown", (e) => { if (e.button === 0) e.preventDefault(); });
       expandBtn.addEventListener("click", (e) => {
         e.stopPropagation();
+        if (!(P().state.lyrics && P().state.lyrics.length)) {
+          toast("这首歌还没有歌词", "error");
+          return;
+        }
         setLyricsFull(!npPageEl.classList.contains("lyrics-full"));
       });
     }
@@ -1750,12 +1763,16 @@
       karaokeRAF = requestAnimationFrame(tick);
     }
     // 歌词到达/清空后总是重绘一次，顺带对齐当前进度（只在有容器时重绘会残留上一首的歌词）
-    bus.on("player:lyric", () => renderLyric());
-    bus.on("player:queue", () => {
+    // 具名函数才能 off。之前用匿名箭头，离开播放页后订阅仍在：
+    // 每进一次播放页就多一个，歌词一变就重复渲染 N 次（渲染的还是已移除的 DOM）。
+    const onLyric = () => { renderLyric(); syncExpandAvailability(); };
+    const onQueue = () => {
       const tab = $("[data-nptab='queue']", el);
       if (tab) tab.innerHTML = "队列 " + P().queueList().length;
       if (npTab === "queue") { renderQueue(); fitQueueHeight(); }
-    });
+    };
+    bus.on("player:lyric", onLyric);
+    bus.on("player:queue", onQueue);
 
     // 切歌时原地更新（避免整页重挂载丢失歌词滚动 / 队列 tab / 收藏态）
     function updateSongInfo(s) {
@@ -1764,7 +1781,10 @@
       $(".np-artist", el).textContent = s.artist + " · " + (s.album || "");
       const cover = $("#npCover", el);
       cover.style.background = "linear-gradient(150deg," + s.c.from + "," + s.c.to + ")";
-      cover.innerHTML = s.coverUrl ? '<img src="' + C.esc(s.coverUrl) + '" alt="' + C.esc(s.title) + '" />' : (s.emoji || "🎵");
+      // alt 留空 + onerror 隐藏：封面裂掉时不能把整块填成歌名文字
+      cover.innerHTML = s.coverUrl
+        ? '<img src="' + C.esc(s.coverUrl) + '" alt="" onerror="this.style.display=\'none\'" />'
+        : (s.emoji || "🎵");
       $(".np-badge-row", el).innerHTML =
         (s.vip ? '<span class="pf-tag" style="color:var(--warning);background:rgba(255,184,77,.12)">VIP</span>' : "") +
         '<span class="pf-tag">' + (s.external ? (s.id.indexOf("ne_") === 0 ? "网易云音乐" : s.id.indexOf("qq_") === 0 ? "QQ音乐" : "Audius") : "本地曲库") + "</span>" +
@@ -1841,9 +1861,6 @@
         if (e.pointerType === "mouse" && e.button !== 0) return;
         active = true; axis = null; lastDx = 0; lastDy = 0;
         sx = e.clientX; sy = e.clientY; pid = e.pointerId;
-        // 入场动画（rise-in）会盖住 inline transform，先停掉
-        wrapEl.style.animation = "none";
-        wrapEl.classList.add("dragging");
       });
 
       coverEl.addEventListener("pointermove", (e) => {
@@ -1856,6 +1873,9 @@
           else if (dy > 0 && Math.abs(dy) > Math.abs(dx) * 1.2) axis = "y";
           else { active = false; return; }      // 上滑/斜滑：不接管
           try { coverEl.setPointerCapture(pid); } catch (err) { /* 忽略 */ }
+          // 真开始拖了才停动画：点一下封面只是点击，不该让封面呼吸永久停掉
+          wrapEl.style.animation = "none";
+          wrapEl.classList.add("dragging");
           wrapEl.style.transition = "none";
           pageEl.style.transition = "none";
         }
@@ -1890,7 +1910,13 @@
               wrapEl.style.transform = "";
               wrapEl.style.opacity = "";
               wrapEl.style.animation = "";   // 交还给 song-next / song-prev
+              const wasId = P().currentSong() && P().currentSong().id;
               if (dir > 0) P().prev(); else P().next(false);
+              // 到头了（不循环 / 已是第一首）：封面滑出去又弹回来，得说一句为什么
+              setTimeout(() => {
+                const nowId = P().currentSong() && P().currentSong().id;
+                if (nowId === wasId) UI().toast(dir > 0 ? "已经是第一首了" : "已经是最后一首了");
+              }, 120);
             }, 200);
           } else {
             resetCover(true);
@@ -1922,6 +1948,8 @@
     // 页面移除时解绑监听
     const obs = new MutationObserver(() => {
       if (!document.body.contains(el)) {
+        bus.off("player:lyric", onLyric);
+        bus.off("player:queue", onQueue);
         bus.off("player:lyricline", onLyricLine);
         bus.off("player:changed", onSongChanged);
         bus.off("player:covercolor", onCoverColor);
